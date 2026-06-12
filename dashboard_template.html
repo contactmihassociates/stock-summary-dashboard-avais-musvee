@@ -464,6 +464,14 @@ function renderAlerts(m,p,T,P){
     if (Math.abs(m.yarnStore.value-p.yarnStore.value)<1 && m.yarnStore.value>0)
       A.push({lv:'crit',ico:'🧶',t:'Raw-material yarn stock unchanged',
         s:`Store-RM value is identical to ${p.month} (${inr(m.yarnStore.value)}). Either the sheet was not updated or ${kg(m.yarnStore.kg)} of yarn has not moved all month — verify physically.`});
+    else {
+      const pmRm={}; p.rawMaterial.forEach(r=>pmRm[rmKey(r)]=r);
+      const staleRm = m.rawMaterial.filter(r=>r.value>50000 && pmRm[rmKey(r)] &&
+        Math.abs(r.value-pmRm[rmKey(r)].value)<1);
+      if (staleRm.length)
+        A.push({lv:'warn',ico:'🧶',t:`${staleRm.length} yarn lots show no movement`,
+          s:`Worth ${inr(staleRm.reduce((s,r)=>s+r.value,0))} combined: ${staleRm.slice(0,4).map(r=>r.product+' ('+r.supplier+')').join(', ')}${staleRm.length>4?'…':''}. Check the RM register below.`});
+    }
     if (Math.abs(m.numbal.value-p.numbal.value)<1 && m.numbal.value>0)
       A.push({lv:'warn',ico:'🏭',t:'Numbal stock static',
         s:`Numbal stock unchanged at ${inr(m.numbal.value)} (${kg(m.numbal.kg)}). Ageing location stock — consider liquidation plan.`});
@@ -555,20 +563,36 @@ function renderCustTable(m,p){
     const c=th.dataset.c; custSort = custSort.col===c?{col:c,dir:-custSort.dir}:{col:c,dir:-1};
     renderCustTable(m,p);});
 }
+function rmKey(r){ return r.product + '|' + r.supplier; }
 function renderRmTable(m,p){
-  let rows=[...m.rawMaterial];
+  const pm = {};
+  if (p) p.rawMaterial.forEach(r=>pm[rmKey(r)]=r);
+  let rows=m.rawMaterial.map(r=>{
+    const prior = p ? pm[rmKey(r)] : null;
+    const pv = prior ? prior.value : (p ? 0 : null);
+    let status='ok';
+    if (p){
+      if (prior && Math.abs(r.value-prior.value)<1) status='stale';
+      else if (!prior) status='new';
+    }
+    return {...r, pv, status};
+  });
   if (rmFilter) rows = rows.filter(r=>
     r.product.toLowerCase().includes(rmFilter) || r.supplier.toLowerCase().includes(rmFilter));
   rows.sort((a,b)=>{const k=rmSort.col;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*rmSort.dir;});
   const tot=rows.reduce((s,r)=>s+r.value,0), totKg=rows.reduce((s,r)=>s+r.kg,0);
+  const badge={ok:'<span class="badge ok">moving</span>',stale:'<span class="badge stale">no movement</span>',
+    new:'<span class="badge new">new</span>'};
   document.getElementById('rmTable').innerHTML =
     `<thead><tr><th data-c="product">Yarn Count</th><th data-c="supplier">Supplier</th>
-     <th class="r" data-c="kg">Stock</th><th class="r" data-c="rate">Rate/kg</th><th class="r" data-c="value">Value</th><th class="r">Share</th></tr></thead><tbody>`+
+     <th class="r" data-c="kg">Stock</th><th class="r" data-c="rate">Rate/kg</th><th class="r" data-c="value">Value</th>
+     <th class="r">Share</th><th class="r">MoM Δ</th><th>Status</th></tr></thead><tbody>`+
     rows.map(r=>`<tr><td>${r.product}</td><td>${r.supplier}</td><td class="r">${kg(r.kg)}</td>
       <td class="r">₹${r.rate.toFixed(2)}</td><td class="r">${inr(r.value)}</td>
-      <td class="r">${tot?(r.value/tot*100).toFixed(1):'0'}%</td></tr>`).join('')+
+      <td class="r">${tot?(r.value/tot*100).toFixed(1):'0'}%</td>
+      <td class="r">${deltaHtml(r.value,r.pv)}</td><td>${p?badge[r.status]:'—'}</td></tr>`).join('')+
     `<tr style="font-weight:700;background:#222636"><td>TOTAL</td><td></td><td class="r">${kg(totKg)}</td>
-      <td></td><td class="r">${inr(tot)}</td><td></td></tr></tbody>`;
+      <td></td><td class="r">${inr(tot)}</td><td colspan="3"></td></tr></tbody>`;
   document.querySelectorAll('#rmTable th[data-c]').forEach(th=>th.onclick=()=>{
     const c=th.dataset.c; rmSort = rmSort.col===c?{col:c,dir:-rmSort.dir}:{col:c,dir:-1};
     renderRmTable(m,p);});
