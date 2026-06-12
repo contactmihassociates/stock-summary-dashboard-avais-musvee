@@ -4,12 +4,21 @@ A Power BI–style monthly closing-stock dashboard for a textile mill, generated
 from the monthly `*Stock statement.xlsx` files (Yarn → Sizing → Loom → Grey →
 Dyeing → Stitching/Blanket → Finished Goods).
 
-## Monthly workflow
+## Updating the data — two ways
 
-1. Drop the new month's `XXX-YY Stock statement.xlsx` into this folder
-   (same sheet layout as previous months).
+**A. In the browser (quick, personal):** open the dashboard, click
+**⚙ Manage Data**, and drop the new month's
+`XXX-YY Stock statement.xlsx` straight in. It is parsed client-side
+(SheetJS), saved in your browser's local storage, and every chart, alert
+and table updates instantly. Works on the hosted Vercel site too.
+Uploads are visible only in that browser.
+
+**B. Permanent (publishes for everyone):**
+
+1. Drop the new month's xlsx into this folder (same sheet layout).
 2. Double-click **`Update Dashboard.bat`** — it rebuilds and opens the
-   dashboard automatically. (Or run `python build_dashboard.py` manually.)
+   dashboard. (Or run `python build_dashboard.py`.)
+3. `git add -A && git commit && git push` — Vercel redeploys automatically.
 
 The trend chart, month-over-month comparisons, and automated alerts extend to
 every month on file automatically.

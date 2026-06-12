@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
   --bg:#0b0d14; --panel:#161927e6; --panel2:#1f2335; --border:#2b3047;
@@ -114,6 +115,30 @@ tr:hover td{background:#222636}
 .stage .d{font-size:11px;font-weight:600;margin-top:2px}
 .arrow{display:flex;align-items:center;color:var(--muted);font-size:16px}
 footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
+.btn-accent{border-color:rgba(90,180,240,.5);background:linear-gradient(135deg,rgba(90,180,240,.18),rgba(167,139,250,.14))}
+/* data modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(5,7,14,.7);backdrop-filter:blur(4px);
+  display:none;align-items:flex-start;justify-content:center;z-index:50;padding:6vh 16px;overflow-y:auto}
+.modal-overlay.open{display:flex}
+.modal{background:#171a28;border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:0 24px 60px -20px rgba(0,0,0,.8);max-width:640px;width:100%;padding:20px 22px}
+.modal h3{font-size:15px;font-weight:700;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.dropzone{border:2px dashed #3a4163;border-radius:12px;padding:26px 18px;text-align:center;cursor:pointer;
+  transition:all .15s;color:var(--text);font-size:13px}
+.dropzone:hover,.dropzone.drag{border-color:var(--accent);background:rgba(90,180,240,.07)}
+.dropzone .dz-ico{font-size:28px;margin-bottom:6px}
+.dropzone .dz-sub{color:var(--muted);font-size:11.5px;margin-top:6px}
+.dropzone code,.modal-note code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:11px}
+#uploadStatus{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+#uploadStatus .alert{margin:0}
+.month-list{margin-top:14px;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
+.month-row{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);
+  border-radius:8px;padding:8px 12px;font-size:12.5px}
+.month-row .mr-name{font-weight:700;min-width:64px}
+.month-row .mr-meta{color:var(--muted);flex:1}
+.month-row .mr-del{background:none;border:none;color:var(--bad);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:5px}
+.month-row .mr-del:hover{background:#3d1a1f}
+.modal-note{color:var(--muted);font-size:11.5px;margin-top:14px;line-height:1.6}
 @media(max-width:1000px){.g2,.g2b,.g3{grid-template-columns:1fr}.chartbox{height:260px}}
 @media print{body{background:#fff;color:#000}.card,.kpi{border:1px solid #ccc;background:#fff;break-inside:avoid}
   .controls,.tools .btn,.tools input{display:none}.tablewrap{max-height:none;overflow:visible}
@@ -141,6 +166,7 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
         <option value="kg">Weight (kg)</option>
       </select>
       <button class="btn" onclick="window.print()" title="Print or save as PDF">🖨 Print / PDF</button>
+      <button class="btn btn-accent" onclick="openDataModal()" title="Upload new monthly statements">⚙ Manage Data</button>
     </div>
   </header>
 
@@ -224,12 +250,52 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
     <div class="tablewrap"><table id="rmTable"></table></div>
   </div>
 
-  <footer>Generated from monthly stock statement files · Re-run <b>build_dashboard.py</b> after adding a new month's xlsx · All values in ₹ (Cr = Crore, L = Lakh)</footer>
+  <footer>Generated from monthly stock statement files · Update via <b>⚙ Manage Data</b> (browser) or <b>build_dashboard.py</b> (permanent) · All values in ₹ (Cr = Crore, L = Lakh)</footer>
+</div>
+
+<div class="modal-overlay" id="dataModal">
+  <div class="modal">
+    <h3>⚙ Manage Dashboard Data
+      <button class="btn" onclick="closeDataModal()">✕ Close</button>
+    </h3>
+    <div class="dropzone" id="dropzone">
+      <div class="dz-ico">📄</div>
+      <div><b>Drop a monthly stock statement here</b> or click to browse</div>
+      <div class="dz-sub">e.g. <code>JUN-26 Stock statement.xlsx</code> — same sheet layout as previous months. Several files at once is fine.</div>
+      <input type="file" id="fileInput" accept=".xlsx,.xlsm" multiple hidden>
+    </div>
+    <div id="uploadStatus"></div>
+    <div class="month-list" id="monthList"></div>
+    <p class="modal-note">Uploaded months are stored <b>in this browser only</b> (they survive reloads but are not shared with others).
+    To publish a month permanently for everyone, add the xlsx to the project folder, run <code>Update Dashboard.bat</code> and push to GitHub — Vercel redeploys automatically.</p>
+  </div>
 </div>
 
 <script>
 const DATA = /*__STOCK_DATA__*/;
-const MONTHS = DATA.months;
+const STORE_KEY = 'stockDashboardUploadedMonths_v1';
+const MONTH_ORDER = {JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12};
+function monthKey(label){
+  const m = /^([A-Z]{3})-(\d{2})$/.exec(String(label).toUpperCase());
+  return m ? (2000 + +m[2]) * 100 + (MONTH_ORDER[m[1]] || 0) : 0;
+}
+function loadUploaded(){
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveUploaded(list){
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(list)); return true; }
+  catch(e){ return false; }
+}
+let MONTHS = [];
+function assembleMonths(){
+  const uploaded = loadUploaded();
+  const map = {};
+  DATA.months.forEach(m=>{ map[m.month] = {...m, source:'built-in'}; });
+  uploaded.forEach(m=>{ map[m.month] = {...m, source:'uploaded'}; });  // uploads override same label
+  MONTHS = Object.values(map).sort((a,b)=>monthKey(a.month)-monthKey(b.month));
+}
+assembleMonths();
 const PALETTE = ['#4ea8de','#f4a261','#2ecc71','#e85d6a','#a78bfa','#34d3c8','#f472b6','#facc15','#fb923c','#60a5fa'];
 Chart.defaults.color = '#9aa1b9';
 Chart.defaults.borderColor = '#2c3145';
@@ -276,16 +342,24 @@ const charts = {};
 function fmtU(v){ return unit === 'value' ? inr(v) : kg(v); }
 function fld(row){ return unit === 'value' ? row.value : row.kg; }
 
-function init(){
+function populateSelects(){
   const ms = document.getElementById('monthSel'), ps = document.getElementById('prevSel');
-  const us = document.getElementById('unitSel');
+  ms.innerHTML = ''; ps.innerHTML = '';
   MONTHS.forEach((m,i)=>{
     ms.add(new Option(m.month, i)); ps.add(new Option(m.month, i));
   });
+  curIdx = Math.min(curIdx, MONTHS.length-1);
+  prevIdx = Math.min(prevIdx, MONTHS.length-1);
   ms.value = curIdx; ps.value = prevIdx;
+}
+function init(){
+  const ms = document.getElementById('monthSel'), ps = document.getElementById('prevSel');
+  const us = document.getElementById('unitSel');
+  populateSelects();
   ms.onchange = ()=>{ curIdx = +ms.value; render(); };
   ps.onchange = ()=>{ prevIdx = +ps.value; render(); };
   us.onchange = ()=>{ unit = us.value; render(); };
+  setupDataModal();
   document.getElementById('custSearch').oninput = e=>{
     custFilter = e.target.value.trim().toLowerCase();
     renderCustTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
@@ -732,6 +806,172 @@ function renderRmTable(m,p){
   document.querySelectorAll('#rmTable th[data-c]').forEach(th=>th.onclick=()=>{
     const c=th.dataset.c; rmSort = rmSort.col===c?{col:c,dir:-rmSort.dir}:{col:c,dir:-1};
     renderRmTable(m,p);});
+}
+
+// ---------- in-browser xlsx workspace (port of extract_stock_data.py) ----------
+function xnum(v){
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return v;
+  const f = parseFloat(String(v).replace(/,/g,''));
+  return isNaN(f) ? 0 : f;
+}
+function xtext(v){ return v === null || v === undefined ? '' : String(v).trim(); }
+function xfind(rows, rx, start){
+  for (let i = start||0; i < rows.length; i++)
+    for (const v of rows[i])
+      if (v !== null && v !== undefined && rx.test(String(v))) return i;
+  return -1;
+}
+function parseSummarySheet(ws){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+  rows.forEach(r=>{ while(r.length < 8) r.push(null); });
+  const out = {asOnDate:'', grandTotal:0, yarnStore:{kg:0,value:0}, chemicals:[],
+    fuelValue:0, wip:[], blanketStock:{kg:0,value:0}, customers:[], numbal:{kg:0,value:0}, warnings:[]};
+  let i = xfind(rows, /CLOSING STOCK AS ON/i);
+  if (i>=0){
+    const m = /AS ON\s*([\d.\-\/]+)/i.exec(String(rows[i][0]));
+    if (m) out.asOnDate = m[1];
+  }
+  i = xfind(rows, /^Store\s*-\s*RM$/i);
+  if (i>=0) out.yarnStore = {kg:xnum(rows[i][2]), value:xnum(rows[i][4])};
+  i = xfind(rows, /Closing Stock\s*-?\s*Chemical/i);
+  const j = xfind(rows, /Closing Stock\s+Fuel/i);
+  if (i>=0 && j>i)
+    for (const r of rows.slice(i+1, j)){
+      const name = xtext(r[1]);
+      if (name && name.includes('Dept'))
+        out.chemicals.push({dept:name.replace(/-?\s*Dept/,'').replace(/[\s-]+$/,'').trim(),
+          kg:xnum(r[2]), value:xnum(r[4])});
+    }
+  if (j>=0)
+    for (const r of rows.slice(j+1, j+4))
+      if (xtext(r[1]).includes('Boiler')){ out.fuelValue = xnum(r[4]); break; }
+  const wi = xfind(rows, /Closing Stock\s*-\s*WIP/i);
+  const we = xfind(rows, /Closing Stock\s*-\s*Towels/i);
+  if (wi>=0 && we>wi){
+    let dept = '';
+    for (const r of rows.slice(wi+1, we)){
+      const name = xtext(r[1]);
+      if (!name) continue;
+      const kgv = xnum(r[2]), val = xnum(r[4]);
+      const up = name.toUpperCase();
+      if (up.includes('DEPT') || up.startsWith('STITCHING') || up.startsWith('BLANKET')){
+        dept = name.replace(/-?\s*Dept/i,'').replace(/[\s-]+$/,'').trim();
+        dept = dept.replace(/\w\S*/g, t=>t[0].toUpperCase()+t.slice(1).toLowerCase());
+        continue;
+      }
+      if (['A) - YARN','B) - TOWEL - WIP','BLANKET'].includes(up)) continue;
+      const item = name.replace(/^\s*[a-f0-9]\s*[.)]\s*/i,'').trim();
+      if (val>0 || kgv>0) out.wip.push({dept, item, kg:kgv, value:val});
+    }
+  }
+  if (we>=0){
+    for (const r of rows.slice(we+1, we+4))
+      if (xtext(r[1]) === 'Blanket'){ out.blanketStock = {kg:xnum(r[2]), value:xnum(r[4])}; break; }
+    const ni = xfind(rows, /Numbal Stock/i);
+    const end = ni>0 ? ni : rows.length;
+    for (const r of rows.slice(we+1, end)){
+      const sno = r[0], name = xtext(r[1]);
+      if (typeof sno === 'number' && name && name !== 'Blanket'){
+        const lo = name.toLowerCase();
+        if (lo.includes('non moving') || lo.includes('bsi stock')) continue;
+        out.customers.push({name, kg:xnum(r[2]), value:xnum(r[4])});
+      }
+    }
+    if (ni>0) out.numbal = {kg:xnum(rows[ni][2]), value:xnum(rows[ni][4])};
+  }
+  for (const r of rows)
+    if (r.some(v=>v!==null && String(v).includes('GRAND TOTAL')) && xnum(r[6])>0)
+      out.grandTotal = xnum(r[6]);
+  const comp = out.yarnStore.value + out.chemicals.reduce((s,c)=>s+c.value,0)
+    + out.wip.reduce((s,w)=>s+w.value,0) + out.blanketStock.value
+    + out.customers.reduce((s,c)=>s+c.value,0) + out.numbal.value;
+  if (Math.abs(comp - out.grandTotal) > 1000)
+    out.warnings.push(`Component sum (${inr(comp)}) differs from sheet GRAND TOTAL (${inr(out.grandTotal)}) - check the SUMMARY sheet formulas.`);
+  if (!out.customers.length) out.warnings.push('No customer finished-goods rows were found in the SUMMARY sheet.');
+  if (!out.wip.length) out.warnings.push('No WIP rows were found in the SUMMARY sheet.');
+  return out;
+}
+function parseStoreRmSheet(ws){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+  const items = [];
+  for (let i = 7; i < rows.length; i++){
+    const r = rows[i]; if (!r) continue;
+    const product = xtext(r[1]), supplier = xtext(r[2]);
+    const kgv = xnum(r[3]), rate = xnum(r[4]), val = xnum(r[5]);
+    if (product && (kgv>0 || val>0) && !product.toLowerCase().includes('total'))
+      items.push({product, supplier, kg:kgv, rate, value:val});
+  }
+  return items;
+}
+function parseStatementFile(file){
+  return file.arrayBuffer().then(buf=>{
+    const wb = XLSX.read(buf, {type:'array'});
+    if (!wb.SheetNames.includes('SUMMARY'))
+      throw new Error('No SUMMARY sheet found - is this a stock statement file?');
+    const lm = /([A-Za-z]{3})\s*-\s*(\d{2})/.exec(file.name);
+    const label = lm ? (lm[1].toUpperCase()+'-'+lm[2]) : file.name.replace(/\.[^.]+$/,'').toUpperCase();
+    const data = parseSummarySheet(wb.Sheets['SUMMARY']);
+    data.month = label;
+    data.file = file.name;
+    data.rawMaterial = wb.SheetNames.includes('Store - RM') ? parseStoreRmSheet(wb.Sheets['Store - RM']) : [];
+    return data;
+  });
+}
+
+// ---------- modal ----------
+function openDataModal(){ document.getElementById('dataModal').classList.add('open'); renderMonthList(); }
+function closeDataModal(){ document.getElementById('dataModal').classList.remove('open'); }
+function statusMsg(lv, title, sub){
+  document.getElementById('uploadStatus').insertAdjacentHTML('beforeend',
+    `<div class="alert ${lv}"><div class="ico">${lv==='crit'?'🛑':lv==='info'?'✅':'⚠️'}</div><div><b>${title}</b><span>${sub||''}</span></div></div>`);
+}
+function renderMonthList(){
+  document.getElementById('monthList').innerHTML = MONTHS.map(m=>{
+    const up = m.source==='uploaded';
+    return `<div class="month-row"><span class="mr-name">${m.month}</span>
+      <span class="mr-meta">as on ${m.asOnDate||'?'} · ${inr(m.grandTotal)} · ${m.customers.length} customers</span>
+      <span class="badge ${up?'new':'ok'}">${up?'uploaded':'built-in'}</span>
+      ${up?`<button class="mr-del" title="Remove this uploaded month" onclick="removeMonth('${m.month}')">✕</button>`:''}</div>`;
+  }).join('');
+}
+function removeMonth(label){
+  saveUploaded(loadUploaded().filter(m=>m.month!==label));
+  refreshAfterDataChange();
+  statusMsg('info', `${label} removed`, 'The built-in data (if any) for that month is shown again.');
+}
+function refreshAfterDataChange(){
+  assembleMonths();
+  curIdx = MONTHS.length-1;
+  prevIdx = Math.max(0, MONTHS.length-2);
+  populateSelects();
+  render();
+  renderMonthList();
+}
+function handleFiles(files){
+  document.getElementById('uploadStatus').innerHTML = '';
+  [...files].forEach(f=>{
+    parseStatementFile(f).then(data=>{
+      const list = loadUploaded().filter(m=>m.month!==data.month);
+      list.push(data);
+      if (!saveUploaded(list)){
+        statusMsg('crit', 'Could not save to browser storage', 'Storage may be full or blocked.');
+        return;
+      }
+      refreshAfterDataChange();
+      statusMsg('info', `${data.month} added - ${inr(data.grandTotal)}`,
+        data.warnings.length ? data.warnings.join(' ') : `${data.customers.length} customers, ${data.wip.length} WIP lines, ${data.rawMaterial.length} yarn items parsed.`);
+    }).catch(err=>statusMsg('crit', `${f.name}: could not be read`, String(err.message||err)));
+  });
+}
+function setupDataModal(){
+  const dz = document.getElementById('dropzone'), fi = document.getElementById('fileInput');
+  dz.onclick = ()=>fi.click();
+  fi.onchange = ()=>{ handleFiles(fi.files); fi.value=''; };
+  dz.ondragover = e=>{ e.preventDefault(); dz.classList.add('drag'); };
+  dz.ondragleave = ()=>dz.classList.remove('drag');
+  dz.ondrop = e=>{ e.preventDefault(); dz.classList.remove('drag'); handleFiles(e.dataTransfer.files); };
+  document.getElementById('dataModal').onclick = e=>{ if (e.target.id==='dataModal') closeDataModal(); };
 }
 
 init();
