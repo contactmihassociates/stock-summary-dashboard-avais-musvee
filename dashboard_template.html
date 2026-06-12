@@ -122,6 +122,11 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
     <div class="flow" id="pipeline"></div>
   </div>
 
+  <div class="card" style="margin-bottom:var(--gap)" id="wfCard">
+    <h3>What Moved the Total? — Month-over-Month Bridge <span class="hint" id="wfHint"></span></h3>
+    <div class="chartbox"><canvas id="wfChart"></canvas></div>
+  </div>
+
   <div class="grid g2b">
     <div class="card">
       <h3>Finished Goods by Customer <span class="hint">value, colored by MoM movement</span></h3>
@@ -247,6 +252,7 @@ function render(){
     `Closing stock as on ${m.asOnDate || m.month}` + (p ? ` · compared with ${p.month}` : '');
 
   renderKPIs(m,p,T,P);
+  renderWaterfall(m,p,T,P);
   renderTrend();
   renderComposition(T);
   renderPipeline(m,p);
@@ -298,6 +304,49 @@ function renderKPIs(m,p,T,P){
 function mkChart(id, cfg){
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(document.getElementById(id), cfg);
+}
+function renderWaterfall(m,p,T,P){
+  const card = document.getElementById('wfCard');
+  if (!p){ card.style.display='none'; if(charts.wfChart){charts.wfChart.destroy();delete charts.wfChart;} return; }
+  card.style.display='';
+  const parts = [
+    {name:'Raw Material', d:T.yarn - P.yarn},
+    {name:'Chemicals',    d:T.chem - P.chem},
+    {name:'WIP',          d:T.wip  - P.wip},
+    {name:'Finished Goods', d:T.fg - P.fg},
+    {name:'Numbal',       d:T.numbal - P.numbal},
+  ];
+  const labels = [p.month, ...parts.map(x=>x.name), m.month];
+  const bars = []; const colors = [];
+  bars.push([0, P.grand]); colors.push('#4ea8de');
+  let run = P.grand;
+  parts.forEach(x=>{
+    bars.push(x.d >= 0 ? [run, run + x.d] : [run + x.d, run]);
+    colors.push(Math.abs(x.d) < 1 ? '#9aa1b9' : x.d >= 0 ? '#2ecc71' : '#e85d6a');
+    run += x.d;
+  });
+  bars.push([0, T.grand]); colors.push('#4ea8de');
+  const net = T.grand - P.grand;
+  document.getElementById('wfHint').textContent =
+    `net ${net>=0?'+':'−'}${inr(Math.abs(net)).replace('₹','₹')} vs ${p.month}`;
+  const deltas = [null, ...parts.map(x=>x.d), null];
+  const lows = bars.map(b=>Math.min(b[0],b[1]));
+  const minY = Math.min(...lows.filter((_,i)=>i>0 && i<bars.length-1));
+  mkChart('wfChart',{
+    type:'bar',
+    data:{labels,datasets:[{data:bars,backgroundColor:colors.map(c=>c+'cc'),
+      borderColor:colors,borderWidth:1,borderRadius:4,barPercentage:.7}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>{
+          const i=c.dataIndex;
+          if (deltas[i]===null) return `Total: ${inr(c.raw[1])}`;
+          const d=deltas[i];
+          return `${d>=0?'+':'−'}${inr(Math.abs(d))} (running: ${inr(c.raw[d>=0?1:0])})`;}}}},
+      scales:{y:{min:Math.max(0, Math.floor(minY*0.92/1e6)*1e6),
+          ticks:{callback:v=>inr(v)},grid:{color:'#262a3c'}},
+        x:{grid:{display:false},ticks:{font:{size:11}}}}}
+  });
 }
 function renderTrend(){
   const labels = MONTHS.map(m=>m.month);
