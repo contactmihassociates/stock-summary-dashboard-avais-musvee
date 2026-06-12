@@ -96,6 +96,12 @@ tr:hover td{background:#222636}
 .entrybar .f label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;
   letter-spacing:.6px;margin-bottom:3px}
 .entrybar .f input,.entrybar .f select{width:100%}
+.itemdrop{position:absolute;top:100%;left:0;right:0;background:#1c2030;border:1px solid var(--border);
+  border-radius:8px;max-height:230px;overflow-y:auto;z-index:10;display:none;box-shadow:var(--shadow)}
+.itemdrop.open{display:block}
+.itemdrop .opt{padding:7px 10px;font-size:12.5px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+.itemdrop .opt:hover,.itemdrop .opt.hl{background:#2a3050}
+.itemdrop .opt .meta{color:var(--muted);font-size:11px;white-space:nowrap}
 .calcline{display:flex;gap:18px;font-size:12px;color:var(--muted);margin:0 2px 12px;flex-wrap:wrap}
 .calcline b{color:var(--text);font-variant-numeric:tabular-nums}
 .calcline .err{color:var(--bad);font-weight:600}
@@ -165,7 +171,11 @@ footer a{color:var(--brand-light);text-decoration:none}
         <span class="hint">Tab/Enter moves between fields · Ctrl+Enter saves · closing auto-calculates</span></h3>
       <div class="entrybar" id="entrybar">
         <div class="f"><label>Date</label><input type="date" id="eDate"></div>
-        <div class="f"><label>Item</label><select id="eItem"></select></div>
+        <div class="f" style="position:relative"><label>Item</label>
+          <input type="text" id="eItemSearch" placeholder="Type to search 169 items…" autocomplete="off">
+          <input type="hidden" id="eItem">
+          <div id="itemDrop" class="itemdrop"></div>
+        </div>
         <div class="f"><label>Batch No</label><input type="text" id="eBatch" placeholder="optional"></div>
         <div class="f"><label>Received</label><input type="number" id="eRecv" min="0" step="any" value="0"></div>
         <div class="f"><label>Issued</label><input type="number" id="eIss" min="0" step="any" value="0"></div>
@@ -372,11 +382,48 @@ function totals(){
 // ---------------- entry workspace ----------------
 let editingId = null;
 function refreshItemSelects(){
-  const opts = DB.items.map(i=>`<option value="${i.id}">${i.name} (${i.category||'—'})</option>`).join('');
-  $('eItem').innerHTML = opts || '<option value="">— add items in Item Master first —</option>';
   $('regItemFilter').innerHTML = '<option value="all">All items</option>' +
     DB.items.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+  if ($('eItem').value && !itemById($('eItem').value)){ $('eItem').value=''; $('eItemSearch').value=''; }
+  $('eItemSearch').placeholder = `Type to search ${DB.items.length} items…`;
 }
+// searchable item combobox
+let dropMatches=[], dropIdx=-1;
+function openDrop(){
+  const q = $('eItemSearch').value.trim().toLowerCase();
+  dropMatches = DB.items.filter(i=>!q || (i.name+' '+(i.category||'')).toLowerCase().includes(q)).slice(0,40);
+  dropIdx = dropMatches.length ? 0 : -1;
+  $('itemDrop').innerHTML = dropMatches.map((it,i)=>{
+    const pos = position(it.id, {});
+    return `<div class="opt${i===dropIdx?' hl':''}" data-i="${i}">
+      <span>${it.name}</span><span class="meta">${it.category||''} · ${qty(pos, it.unit)}</span></div>`;
+  }).join('') || '<div class="opt"><span style="color:var(--muted)">No match — add it in Item Master</span></div>';
+  $('itemDrop').classList.add('open');
+  [...$('itemDrop').querySelectorAll('.opt[data-i]')].forEach(el=>{
+    el.onmousedown = e=>{ e.preventDefault(); chooseItem(dropMatches[+el.dataset.i]); };
+  });
+}
+function closeDrop(){ $('itemDrop').classList.remove('open'); }
+function chooseItem(it){
+  if (!it) return;
+  $('eItem').value = it.id; $('eItemSearch').value = it.name;
+  closeDrop(); calcPreview(); $('eBatch').focus();
+}
+$('eItemSearch').addEventListener('input', ()=>{ $('eItem').value=''; openDrop(); calcPreview(); });
+$('eItemSearch').addEventListener('focus', openDrop);
+$('eItemSearch').addEventListener('blur', ()=>setTimeout(closeDrop, 150));
+$('eItemSearch').addEventListener('keydown', e=>{
+  const open = $('itemDrop').classList.contains('open');
+  if (e.key==='ArrowDown' || e.key==='ArrowUp'){
+    e.preventDefault();
+    if (!open) return openDrop();
+    dropIdx = Math.max(0, Math.min(dropMatches.length-1, dropIdx + (e.key==='ArrowDown'?1:-1)));
+    [...$('itemDrop').querySelectorAll('.opt[data-i]')].forEach((el,i)=>el.classList.toggle('hl', i===dropIdx));
+    const hl = $('itemDrop').querySelector('.opt.hl'); if (hl) hl.scrollIntoView({block:'nearest'});
+  } else if (e.key==='Enter' && open && dropIdx>=0){
+    e.preventDefault(); e.stopPropagation(); chooseItem(dropMatches[dropIdx]);
+  } else if (e.key==='Escape'){ closeDrop(); }
+});
 function calcPreview(){
   const id = $('eItem').value, date = $('eDate').value || todayStr();
   const it = itemById(id);
@@ -429,7 +476,9 @@ function editEntry(id){
   const e = DB.entries.find(x=>x.id===id); if (!e) return;
   if (isLocked(e.date)) return toast('Month is locked', true);
   editingId = id;
-  $('eDate').value=e.date; $('eItem').value=e.itemId; $('eBatch').value=e.batch||'';
+  $('eDate').value=e.date; $('eItem').value=e.itemId;
+  $('eItemSearch').value = (itemById(e.itemId)||{name:''}).name;
+  $('eBatch').value=e.batch||'';
   $('eRecv').value=e.received; $('eIss').value=e.issued; $('eDmg').value=e.damaged;
   $('eRate').value=e.rate||''; $('eNote').value=e.note||'';
   $('entryTitle').textContent = 'Editing ' + id + (e.flag ? ' — accountant note: '+e.flag : '');
