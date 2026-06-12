@@ -203,8 +203,15 @@ footer a{color:var(--brand-light);text-decoration:none}
         <span class="hint">approve or flag entries, then lock the month to freeze it</span></h3>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
         <input type="month" id="accMonth">
+        <select id="accStatus">
+          <option value="all">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="flagged">Flagged</option>
+        </select>
         <span id="monthStatus"></span>
         <button class="btn good" id="lockBtn" onclick="toggleLock()">🔒 Lock Month</button>
+        <button class="btn" id="approveSelBtn" onclick="approveSelected()">✔ Approve selected</button>
         <button class="btn" id="approveAllBtn" onclick="approveAll()">✔ Approve all pending</button>
       </div>
       <div class="tablewrap"><table id="accTable"></table></div>
@@ -575,14 +582,19 @@ function renderAccounts(){
   const isAcc = role()==='accountant';
   $('lockBtn').disabled = !isAcc || !m;
   $('approveAllBtn').disabled = !isAcc || locked;
-  let rows = entriesSorted().reverse().filter(e=>!m || monthOf(e.date)===m);
+  $('approveSelBtn').disabled = !isAcc || locked;
+  const stF = $('accStatus').value;
+  let rows = entriesSorted().reverse().filter(e=>(!m || monthOf(e.date)===m) && (stF==='all' || e.status===stF));
   $('accTable').innerHTML =
-    `<thead><tr><th>Date</th><th>Item</th><th class="r">Recv</th><th class="r">Issued</th><th class="r">Dmg</th>
+    `<thead><tr><th><input type="checkbox" id="accAll" onclick="document.querySelectorAll('.accChk').forEach(c=>c.checked=this.checked)"></th>
+     <th>Date</th><th>Item</th><th class="r">Recv</th><th class="r">Issued</th><th class="r">Dmg</th>
      <th class="r">Rate</th><th class="r">Line Value</th><th>Status</th><th>Note</th><th></th></tr></thead><tbody>` +
     rows.map(e=>{
       const it = itemById(e.itemId)||{name:'?'};
       const lv = (e.received - e.issued - e.damaged) * (e.rate || valuation(e.itemId).rate);
-      return `<tr><td>${e.date}</td><td>${it.name}</td><td class="r">${e.received||'—'}</td>
+      return `<tr><td><input type="checkbox" class="accChk" value="${e.id}"></td>
+        <td>${e.date}</td><td><span class="lnk" onclick="openLedger('${e.itemId}')">${it.name}</span></td>
+        <td class="r">${e.received||'—'}</td>
         <td class="r">${e.issued||'—'}</td><td class="r">${e.damaged||'—'}</td>
         <td class="r">${e.rate?'₹'+e.rate:'—'}</td><td class="r">${inr(lv)}</td>
         <td><span class="badge ${e.status}">${e.status}</span></td>
@@ -590,7 +602,7 @@ function renderAccounts(){
         <td>${isAcc && !locked ? `
           <button class="icobtn" title="Approve" onclick="setStatus('${e.id}','approved')">✅</button>
           <button class="icobtn" title="Flag discrepancy" onclick="flagEntry('${e.id}')">🚩</button>` : ''}</td></tr>`;
-    }).join('') + (rows.length?'':'<tr><td colspan="10" style="color:var(--muted)">No entries in this month.</td></tr>') +
+    }).join('') + (rows.length?'':'<tr><td colspan="11" style="color:var(--muted)">No entries match.</td></tr>') +
     '</tbody>';
   // valuation table
   $('valHint').textContent = DB.settings.method + ' method · live';
@@ -620,6 +632,14 @@ function flagEntry(id){
   audit('flag entry', id+': '+note);
   persist(); renderAll();
   toast('Flagged — excluded from stock & valuation until corrected');
+}
+function approveSelected(){
+  const ids = [...document.querySelectorAll('.accChk:checked')].map(c=>c.value);
+  if (!ids.length) return toast('Tick the entries to approve first', true);
+  let n=0;
+  DB.entries.forEach(e=>{ if (ids.includes(e.id) && e.status!=='approved'){ e.status='approved'; e.flag=''; n++; } });
+  audit('approve selected', n+' entries');
+  persist(); renderAll(); toast(n+' entries approved');
 }
 function approveAll(){
   const m = $('accMonth').value;
@@ -977,10 +997,28 @@ $('entrybar').addEventListener('keydown', e=>{
   }
 });
 ['eDate','eItem','eRecv','eIss','eDmg'].forEach(id=>{ $(id).addEventListener('input', calcPreview); $(id).addEventListener('change', calcPreview); });
-$('roleSel').onchange = applyRole;
+let lastRole = 'registrar';
+$('roleSel').onchange = ()=>{
+  if (role()==='accountant'){
+    if (DB.settings.accPin){
+      const pin = prompt('Accountant PIN:');
+      if (pin !== DB.settings.accPin){
+        toast('Wrong PIN', true);
+        $('roleSel').value = lastRole;
+        return;
+      }
+    } else if (confirm('No accountant PIN is set. Set one now to protect approvals and month-locks?')){
+      const pin = prompt('Choose a PIN (4+ digits):');
+      if (pin && pin.length >= 4){ DB.settings.accPin = pin; audit('set accountant PIN',''); persist(); toast('PIN set'); }
+    }
+  }
+  lastRole = role();
+  applyRole();
+};
 $('methodSel').onchange = ()=>{ DB.settings.method=$('methodSel').value; audit('valuation method', DB.settings.method); persist(); renderAll(); };
 $('regMonth').onchange = renderAll; $('regItemFilter').onchange = renderRegister;
 $('accMonth').onchange = ()=>{ renderAccounts(); renderMonthReport(); };
+$('accStatus').onchange = renderAccounts;
 $('mrMoved').onchange = renderMonthReport;
 $('itemSearch').oninput = renderItems;
 $('itemModal').onclick = e=>{ if (e.target.id==='itemModal') closeItemModal(); };
