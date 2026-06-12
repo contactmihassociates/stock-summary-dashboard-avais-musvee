@@ -214,6 +214,15 @@ footer a{color:var(--brand-light);text-decoration:none}
       <h3>Stock Valuation <span class="hint" id="valHint"></span></h3>
       <div class="tablewrap" style="max-height:330px"><table id="valTable"></table></div>
     </div>
+    <div class="card">
+      <h3>Month-End Stock Report <span class="hint">R/MNT/10 format — opening · received · consumption · closing · value</span>
+        <span style="display:flex;gap:8px;align-items:center">
+          <label style="font-size:11px;color:var(--muted)"><input type="checkbox" id="mrMoved" checked> moved items only</label>
+          <button class="btn" onclick="printMonthReport()">🖨 Print</button>
+          <button class="btn" onclick="exportMonthReport()">⬇ CSV</button>
+        </span></h3>
+      <div class="tablewrap" style="max-height:380px"><table id="mrTable"></table></div>
+    </div>
   </section>
 
   <!-- ============ DASHBOARD ============ -->
@@ -785,6 +794,79 @@ function seedFromStatement(silent){
   if (!silent) toast(`Seeded ${n} items with opening stock from the ${m.month} statement`);
 }
 
+// ---------------- month-end report ----------------
+function monthReportRows(m){
+  const start = m + '-01';
+  const rows = [];
+  for (const it of DB.items){
+    let open = it.opening, r=0, i=0, d=0;
+    for (const e of DB.entries){
+      if (e.itemId !== it.id || e.status === 'flagged') continue;
+      if (e.date < start) open += e.received - e.issued - e.damaged;
+      else if (monthOf(e.date) === m){ r += e.received; i += e.issued; d += e.damaged; }
+    }
+    const moved = r||i||d;
+    if ($('mrMoved').checked && !moved) continue;
+    if (!moved && open <= 0) continue;
+    const rate = valuation(it.id).rate || it.openingRate || 0;
+    rows.push({cat: it.category||'Uncategorised', name: it.name, unit: it.unit,
+      open, r, cons: i+d, close: open + r - i - d, rate, consVal: (i+d)*rate});
+  }
+  rows.sort((a,b)=> a.cat===b.cat ? b.consVal-a.consVal : (a.cat<b.cat?-1:1));
+  return rows;
+}
+function monthReportHTML(m, forPrint){
+  const rows = monthReportRows(m);
+  let html = `<thead><tr><th>Item</th><th class="r">Opening Qty</th><th class="r">Received Qty</th>
+    <th class="r">Consumption Qty</th><th class="r">Closing Stock</th><th class="r">Cost ₹</th>
+    <th class="r">Consume Value</th></tr></thead><tbody>`;
+  let cat = null, tot = 0;
+  for (const x of rows){
+    if (x.cat !== cat){
+      cat = x.cat;
+      html += `<tr><td colspan="7" style="font-weight:700;${forPrint?'background:#eee':'background:#222a44;color:var(--brand-light)'}">${cat}</td></tr>`;
+    }
+    tot += x.consVal;
+    html += `<tr><td>${x.name}</td><td class="r">${qty(x.open)}</td><td class="r">${x.r?qty(x.r):'—'}</td>
+      <td class="r">${x.cons?qty(x.cons):'—'}</td><td class="r"><b>${qty(x.close)}</b></td>
+      <td class="r">${x.rate.toFixed(2)}</td><td class="r">${x.consVal?inr(x.consVal):'—'}</td></tr>`;
+  }
+  html += `<tr style="font-weight:700;${forPrint?'border-top:2px solid #000':'background:#222636'}">
+    <td>TOTAL CONSUME VALUE (${rows.length} items)</td><td colspan="5"></td><td class="r">${inr(tot)}</td></tr></tbody>`;
+  return html;
+}
+function renderMonthReport(){
+  $('mrTable').innerHTML = monthReportHTML($('accMonth').value || todayStr().slice(0,7), false);
+}
+function printMonthReport(){
+  const m = $('accMonth').value || todayStr().slice(0,7);
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>Stock Report ${m}</title><style>
+    body{font-family:Segoe UI,Arial,sans-serif;color:#000;padding:24px}
+    h2,h3{text-align:center;margin:4px} table{width:100%;border-collapse:collapse;font-size:12px;margin-top:14px}
+    th,td{border:1px solid #888;padding:5px 8px;text-align:left} th{background:#f0f0f0;font-size:11px}
+    .r{text-align:right} .meta{display:flex;justify-content:space-between;font-size:12px;margin-top:10px}
+    </style></head><body>
+    <h2>CONCORDE TEXTILES</h2><h3>STOCK REPORT — MONTH OF ${m}</h3>
+    <div class="meta"><span>FMT NO: R/MNT/10</span><span>Valuation: ${DB.settings.method}</span>
+      <span>Status: ${DB.locks[m]?'LOCKED':'OPEN'}</span><span>Printed: ${todayStr()}</span></div>
+    <table>${monthReportHTML(m, true)}</table>
+    <div class="meta" style="margin-top:48px"><span>PREPARED BY ____________</span><span>CHECKED BY ____________</span></div>
+    </body></html>`);
+  w.document.close(); w.focus(); w.print();
+}
+function exportMonthReport(){
+  const m = $('accMonth').value || todayStr().slice(0,7);
+  const rows = monthReportRows(m);
+  const esc = v=>{const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const csv = [['Category','Item','Opening Qty','Received Qty','Consumption Qty','Closing Stock','Cost','Consume Value'],
+    ...rows.map(x=>[x.cat,x.name,x.open.toFixed(2),x.r,x.cons,x.close.toFixed(2),x.rate.toFixed(2),x.consVal.toFixed(2)])]
+    .map(r=>r.map(esc).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download = `stock_report_${m}.csv`; a.click(); URL.revokeObjectURL(a.href);
+}
+
 // ---------------- item ledger ----------------
 let ledgerItemId = null;
 function openLedger(itemId){
@@ -880,7 +962,7 @@ function showTab(t){
 }
 function renderAll(){
   refreshItemSelects();
-  renderRegister(); renderAccounts(); renderDash(); renderItems(); renderAudit();
+  renderRegister(); renderAccounts(); renderMonthReport(); renderDash(); renderItems(); renderAudit();
   calcPreview();
 }
 // keyboard: Ctrl+Enter saves from anywhere in the entry bar
@@ -898,7 +980,9 @@ $('entrybar').addEventListener('keydown', e=>{
 $('roleSel').onchange = applyRole;
 $('methodSel').onchange = ()=>{ DB.settings.method=$('methodSel').value; audit('valuation method', DB.settings.method); persist(); renderAll(); };
 $('regMonth').onchange = renderAll; $('regItemFilter').onchange = renderRegister;
-$('accMonth').onchange = renderAccounts; $('itemSearch').oninput = renderItems;
+$('accMonth').onchange = ()=>{ renderAccounts(); renderMonthReport(); };
+$('mrMoved').onchange = renderMonthReport;
+$('itemSearch').oninput = renderItems;
 $('itemModal').onclick = e=>{ if (e.target.id==='itemModal') closeItemModal(); };
 
 // init defaults
