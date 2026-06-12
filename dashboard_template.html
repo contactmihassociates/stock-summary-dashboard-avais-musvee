@@ -248,6 +248,21 @@ footer a:hover{text-decoration:underline}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
+    <h3>Grey &amp; Blanket Department Registers
+      <span class="tools">
+        <select id="gbSel">
+          <option value="all">Grey + Blanket</option>
+          <option value="Grey">Grey dept</option>
+          <option value="Blanket">Blanket dept</option>
+        </select>
+        <input type="search" id="gbSearch" placeholder="Search product / customer…">
+        <button class="btn" onclick="exportGb()">⬇ CSV</button>
+      </span>
+    </h3>
+    <div class="tablewrap" style="max-height:320px"><table id="gbTable"></table></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
     <h3>Stitching Floor — WIP by Stage
       <span class="tools">
         <select id="swSel"></select>
@@ -432,6 +447,14 @@ function init(){
     rmFilter = e.target.value.trim().toLowerCase();
     renderRmTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
   };
+  document.getElementById('gbSel').onchange = e=>{
+    gbSrcVal = e.target.value;
+    renderGb(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
+  document.getElementById('gbSearch').oninput = e=>{
+    gbSearchVal = e.target.value.trim().toLowerCase();
+    renderGb(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
   document.getElementById('swSel').onchange = e=>{
     swStageVal = e.target.value;
     renderStitch(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
@@ -477,6 +500,7 @@ function render(){
   renderWip(m,p);
   renderChem(m,p);
   renderStitch(m,p);
+  renderGb(m,p);
   renderChemTable(m,p);
   renderProducts(m,p);
   renderCustTable(m,p);
@@ -869,6 +893,43 @@ function exportFg(){
       r.pkg===null?'':r.pkg.toFixed(2)]));
 }
 
+// ---------- grey & blanket registers ----------
+let gbSort={col:'value',dir:-1}, gbSrcVal='all', gbSearchVal='';
+function gbKey(r){ return [r.src,r.group,r.product,r.size].join('|'); }
+function gbRows(m,p){
+  const pm = {};
+  if (p) (p.greyBlanket||[]).forEach(r=>pm[gbKey(r)]=r);
+  let rows = (m.greyBlanket||[]).map(r=>({...r, pv: p ? (pm[gbKey(r)]?pm[gbKey(r)].value:0) : null}));
+  if (gbSrcVal!=='all') rows = rows.filter(r=>r.src===gbSrcVal);
+  if (gbSearchVal) rows = rows.filter(r=>
+    (r.product+' '+r.group+' '+r.colour+' '+r.size).toLowerCase().includes(gbSearchVal));
+  return rows;
+}
+function renderGb(m,p){
+  const rows = gbRows(m,p);
+  const srt=[...rows].sort((a,b)=>{const k=gbSort.col;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*gbSort.dir;});
+  const totKg=rows.reduce((s,r)=>s+r.kg,0), totV=rows.reduce((s,r)=>s+r.value,0);
+  document.getElementById('gbTable').innerHTML =
+    `<thead><tr><th data-c="src">Dept</th><th data-c="group">Customer / Type</th><th data-c="product">Product</th>
+     <th data-c="size">Size</th><th class="r" data-c="pcs">Pcs</th><th class="r" data-c="kg">Kg</th>
+     <th class="r" data-c="value">Value</th><th class="r">MoM Δ</th></tr></thead><tbody>`+
+    srt.map(r=>`<tr><td>${r.src}</td><td>${r.group||'—'}</td><td>${r.product}</td><td>${r.size||'—'}</td>
+      <td class="r">${Math.round(r.pcs).toLocaleString('en-IN')}</td><td class="r">${r.kg.toFixed(1)}</td>
+      <td class="r">${inr(r.value)}</td><td class="r">${deltaHtml(r.value,r.pv)}</td></tr>`).join('')+
+    `<tr style="font-weight:700;background:#222636"><td>TOTAL (${rows.length} items)</td><td></td><td></td><td></td>
+      <td></td><td class="r">${totKg.toFixed(1)}</td><td class="r">${inr(totV)}</td><td></td></tr></tbody>`;
+  document.querySelectorAll('#gbTable th[data-c]').forEach(th=>th.onclick=()=>{
+    const c=th.dataset.c; gbSort = gbSort.col===c?{col:c,dir:-gbSort.dir}:{col:c,dir:-1};
+    renderGb(m,p);});
+}
+function exportGb(){
+  const m = MONTHS[curIdx], p = (prevIdx!==curIdx)?MONTHS[prevIdx]:null;
+  downloadCSV(`grey_blanket_${m.month}.csv`,
+    ['Dept','Customer / Type','Product','Colour','Size','Pcs','Kg','Value (Rs)', p?`Prior value (${p.month})`:'Prior value'],
+    gbRows(m,p).map(r=>[r.src,r.group,r.product,r.colour,r.size,r.pcs,r.kg.toFixed(2),r.value.toFixed(2),
+      r.pv===null?'':r.pv.toFixed(2)]));
+}
+
 // ---------- stitching floor ----------
 let swSort={col:'kg',dir:-1}, swStageVal='all', swSearchVal='';
 function swRows(m){
@@ -1183,6 +1244,36 @@ function parseFinishGoodsSheet(ws){
   }
   return items;
 }
+function parseGreySheet(ws){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+  const items = [];
+  for (const r of rows){
+    while (r.length < 13) r.push(null);
+    if (typeof r[0] === 'number' && xtext(r[3])){
+      const kgv = typeof r[9]==='number' ? r[9] : 0;
+      const val = typeof r[12]==='number' ? r[12] : 0;
+      if (kgv > 0 || val > 0)
+        items.push({src:'Grey', group:xtext(r[1]), product:xtext(r[3]), colour:xtext(r[4]),
+          size:xtext(r[5]), pcs:xnum(r[8]), kg:kgv, value:val});
+    }
+  }
+  return items;
+}
+function parseBlanketSheet(ws){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+  const items = [];
+  for (const r of rows){
+    while (r.length < 16) r.push(null);
+    if (typeof r[0] === 'number' && xtext(r[1])){
+      const kgv = typeof r[5]==='number' ? r[5] : 0;
+      const val = typeof r[15]==='number' ? r[15] : 0;
+      if (kgv > 0 || val > 0)
+        items.push({src:'Blanket', group:xtext(r[2]), product:xtext(r[1]), colour:'',
+          size:'', pcs:xnum(r[4]), kg:kgv, value:val});
+    }
+  }
+  return items;
+}
 function parseStitchingSheet(ws){
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
   const items = [];
@@ -1253,6 +1344,8 @@ function parseStatementFile(file){
         data.chemDetail = data.chemDetail.concat(parseChemDetailSheet(wb.Sheets[sheet], dept));
     });
     data.stitchWip = wb.SheetNames.includes('STitching WIP') ? parseStitchingSheet(wb.Sheets['STitching WIP']) : [];
+    data.greyBlanket = (wb.SheetNames.includes('GREY') ? parseGreySheet(wb.Sheets['GREY']) : [])
+      .concat(wb.SheetNames.includes('BLANKET') ? parseBlanketSheet(wb.Sheets['BLANKET']) : []);
     data.numbalDetail = wb.SheetNames.includes(' Numbal ') ? parseNumbalSheet(wb.Sheets[' Numbal ']) : [];
     return data;
   });

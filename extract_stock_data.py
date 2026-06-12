@@ -221,6 +221,36 @@ def parse_numbal(ws):
     return items
 
 
+def parse_grey(ws):
+    """Customer-wise grey (unprocessed) towel WIP with valuation."""
+    items = []
+    for r in ws.iter_rows(min_row=4, max_row=ws.max_row, max_col=13):
+        if isinstance(r[0].value, (int, float)) and cell_text(r[3].value):
+            kg = r[9].value if isinstance(r[9].value, (int, float)) else 0
+            val = r[12].value if isinstance(r[12].value, (int, float)) else 0
+            if kg > 0 or val > 0:
+                items.append({'src': 'Grey', 'group': cell_text(r[1].value),
+                              'product': cell_text(r[3].value), 'colour': cell_text(r[4].value),
+                              'size': cell_text(r[5].value), 'pcs': num(r[8].value),
+                              'kg': float(kg), 'value': float(val)})
+    return items
+
+
+def parse_blanket(ws):
+    """Blanket department holdings (WIP + finished) with valuation."""
+    items = []
+    for r in ws.iter_rows(min_row=5, max_row=ws.max_row, max_col=16):
+        if isinstance(r[0].value, (int, float)) and cell_text(r[1].value):
+            kg = r[5].value if isinstance(r[5].value, (int, float)) else 0
+            val = r[15].value if isinstance(r[15].value, (int, float)) else 0
+            if kg > 0 or val > 0:
+                items.append({'src': 'Blanket', 'group': cell_text(r[2].value),
+                              'product': cell_text(r[1].value), 'colour': '',
+                              'size': '', 'pcs': num(r[4].value),
+                              'kg': float(kg), 'value': float(val)})
+    return items
+
+
 def parse_chem_detail(ws, dept):
     """Item rows PRODUCT NAME | KGS | RATE | VALUE used by DYEING/RO/BOILER/SIZING."""
     items = []
@@ -283,6 +313,9 @@ def main():
             if sheet in wb.sheetnames:
                 data['chemDetail'] += parse_chem_detail(wb[sheet], dept)
         data['stitchWip'] = parse_stitching(wb['STitching WIP']) if 'STitching WIP' in wb.sheetnames else []
+        data['greyBlanket'] = (
+            (parse_grey(wb['GREY']) if 'GREY' in wb.sheetnames else [])
+            + (parse_blanket(wb['BLANKET']) if 'BLANKET' in wb.sheetnames else []))
         data['numbalDetail'] = parse_numbal(wb[' Numbal ']) if ' Numbal ' in wb.sheetnames else []
         months.append(data)
 
