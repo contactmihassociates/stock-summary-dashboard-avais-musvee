@@ -692,31 +692,36 @@ function renderItems(){
     }).join('') + (rows.length?'':'<tr><td colspan="10" style="color:var(--muted)">No items yet — add one or seed from the stock statement.</td></tr>') +
     '</tbody>';
 }
-function seedFromStatement(){
-  if (!SEED || !SEED.months || !SEED.months.length) return toast('No statement data embedded', true);
-  if (DB.items.length && !confirm('Add statement items alongside your existing '+DB.items.length+' items?')) return;
+function seedFromStatement(silent){
+  if (!SEED || !SEED.months || !SEED.months.length){ if(!silent) toast('No statement data embedded', true); return; }
+  if (!silent && DB.items.length && !confirm('Add statement items alongside your existing '+DB.items.length+' items?')) return;
   const m = SEED.months[SEED.months.length-1];
   let n = 0;
   const have = new Set(DB.items.map(i=>i.name.toLowerCase()));
-  (m.rawMaterial||[]).forEach(r=>{
-    const name = `${r.product} — ${r.supplier||'yarn'}`;
-    if (r.kg>0 && !have.has(name.toLowerCase())){
-      DB.items.push({id:nid('I'), name, category:'Yarn', unit:'kg', opening:r.kg,
-        openingRate:r.rate||((r.value&&r.kg)?r.value/r.kg:0), reorder:Math.round(r.kg*0.15)});
+  const add = (name, category, kg, rate, reorderPct)=>{
+    if (kg>0 && !have.has(name.toLowerCase())){
+      have.add(name.toLowerCase());
+      DB.items.push({id:nid('I'), name, category, unit:'kg', opening:kg,
+        openingRate:rate||0, reorder:Math.round(kg*reorderPct)});
       n++;
     }
-  });
-  (m.chemDetail||[]).forEach(c=>{
-    const name = `${c.product} (${c.dept})`;
-    if (c.kg>0 && !have.has(name.toLowerCase())){
-      DB.items.push({id:nid('I'), name, category:c.dept==='Boiler'?'Fuel':'Chemical', unit:'kg',
-        opening:c.kg, openingRate:c.rate||((c.value&&c.kg)?c.value/c.kg:0), reorder:Math.round(c.kg*0.2)});
-      n++;
-    }
-  });
+  };
+  (m.rawMaterial||[]).forEach(r=>add(
+    `${r.product} — ${r.supplier||r.loc||'yarn'}`,
+    r.loc==='Loom (weft)' ? 'Yarn (loom weft)' : 'Yarn',
+    r.kg, r.rate||((r.value&&r.kg)?r.value/r.kg:0), .15));
+  (m.chemDetail||[]).forEach(c=>add(
+    `${c.product} (${c.dept})`,
+    /firewood|furnace|oil|coal|briquette/i.test(c.product) ? 'Fuel' : 'Chemical',
+    c.kg, c.rate||((c.value&&c.kg)?c.value/c.kg:0), .2));
+  // dyed yarn lots - rate derived from the statement's dyeing-yarn WIP valuation
+  const dyWip = (m.wip||[]).find(w=>w.dept==='Dyeing');
+  const dyRate = dyWip && dyWip.kg ? dyWip.value/dyWip.kg : 0;
+  (m.dyedYarn||[]).forEach(d=>add(
+    `Dyed ${d.shade} ${d.count}${d.mill?' — '+d.mill:''}`, 'Dyed Yarn', d.kg, dyRate, .1));
   audit('seed items', n + ' items from ' + m.month + ' statement');
   persist(); renderAll();
-  toast(`Seeded ${n} items with opening stock from the ${m.month} statement`);
+  if (!silent) toast(`Seeded ${n} items with opening stock from the ${m.month} statement`);
 }
 
 // ---------------- audit ----------------
@@ -791,6 +796,11 @@ $('eDate').value = todayStr();
 $('regMonth').value = todayStr().slice(0,7);
 $('accMonth').value = todayStr().slice(0,7);
 $('methodSel').value = DB.settings.method;
+// first run: pre-populate the item master from the latest stock statement
+if (!DB.items.length){
+  seedFromStatement(true);
+  if (DB.items.length) toast(`Item master ready — ${DB.items.length} items loaded from the ${SEED.months[SEED.months.length-1].month} statement`);
+}
 applyRole();
 </script>
 </body>

@@ -221,6 +221,22 @@ def parse_numbal(ws):
     return items
 
 
+def parse_dyed_yarn(ws):
+    """Dyed-yarn lots on the DYEING sheet (shade | count | kg | mill) -
+    the rows the chemical parser deliberately skips."""
+    items = []
+    for r in ws.iter_rows(min_row=4, max_row=ws.max_row, max_col=6):
+        shade = cell_text(r[1].value)
+        count = r[2].value
+        if (shade and isinstance(count, str) and count.strip()
+                and shade.lower() not in ('total', 'product name')):
+            kg = num(r[4].value)
+            if kg > 0:
+                items.append({'shade': shade, 'count': count.strip(),
+                              'kg': kg, 'mill': cell_text(r[5].value)})
+    return items
+
+
 def parse_grey(ws):
     """Customer-wise grey (unprocessed) towel WIP with valuation."""
     items = []
@@ -319,6 +335,7 @@ def main():
                             ('BOILER', 'Boiler'), ('SIZING', 'Sizing')]:
             if sheet in wb.sheetnames:
                 data['chemDetail'] += parse_chem_detail(wb[sheet], dept)
+        data['dyedYarn'] = parse_dyed_yarn(wb['DYEING']) if 'DYEING' in wb.sheetnames else []
         data['stitchWip'] = parse_stitching(wb['STitching WIP']) if 'STitching WIP' in wb.sheetnames else []
         data['greyBlanket'] = (
             (parse_grey(wb['GREY']) if 'GREY' in wb.sheetnames else [])
