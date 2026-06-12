@@ -114,6 +114,13 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
 
   <section class="kpis" id="kpiRow"></section>
 
+  <div class="card" style="margin-bottom:var(--gap)" id="execCard">
+    <h3>Executive Summary
+      <span class="tools"><button class="btn" onclick="copySummary()">📋 Copy text</button></span>
+    </h3>
+    <p id="execText" style="font-size:13.5px;color:var(--text);line-height:1.7"></p>
+  </div>
+
   <div class="grid g2">
     <div class="card">
       <h3>Total Stock Value Trend <span class="hint">all months on file</span></h3>
@@ -266,6 +273,7 @@ function render(){
     `Closing stock as on ${m.asOnDate || m.month}` + (p ? ` · compared with ${p.month}` : '');
 
   renderKPIs(m,p,T,P);
+  renderExec(m,p,T,P);
   renderWaterfall(m,p,T,P);
   renderTrend();
   renderComposition(T);
@@ -312,6 +320,46 @@ function renderKPIs(m,p,T,P){
     kpiCard('k4','Raw Material (Yarn)', inr(T.yarn), t4, c4) +
     kpiCard('k5','FG Concentration', fgShare.toFixed(1)+'%', `${topCust.name} holds ${inr(topCust.value)}`, fgShare>50?'down':'up') +
     kpiCard('k6','No-Movement Stock', p ? inr(stale) : '—', p?'value unchanged vs prior month':'select a comparison month', stale>0?'down':'up');
+}
+
+// ---------- executive summary ----------
+function renderExec(m,p,T,P){
+  const el = document.getElementById('execText');
+  const hi = s=>`<b style="color:#fff">${s}</b>`;
+  let parts = [`Closing stock as on ${m.asOnDate||m.month} stands at ${hi(inr(T.grand))}.`];
+  if (p){
+    const d = T.grand - P.grand, dp = pct(T.grand, P.grand);
+    parts.push(`That is ${hi((d>=0?'up ':'down ')+inr(Math.abs(d)))} (${d>=0?'+':''}${dp.toFixed(1)}%) versus ${p.month}.`);
+    // biggest driver
+    const drv = [
+      ['finished goods', T.fg-P.fg], ['raw material', T.yarn-P.yarn],
+      ['WIP', T.wip-P.wip], ['chemicals', T.chem-P.chem], ['Numbal stock', T.numbal-P.numbal]
+    ].sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]))[0];
+    parts.push(`The largest driver was ${hi(drv[0])}, which ${drv[1]>=0?'added':'released'} ${hi(inr(Math.abs(drv[1])))}.`);
+    const wd = pct(T.wip, P.wip);
+    if (wd !== null && Math.abs(wd) > 5)
+      parts.push(`Work-in-progress ${wd<0?'fell':'rose'} ${Math.abs(wd).toFixed(0)}% to ${inr(T.wip)} (${(T.grand?T.wip/T.grand*100:0).toFixed(1)}% of total stock).`);
+  }
+  const topCust = m.customers.reduce((a,b)=>a.value>b.value?a:b,{name:'-',value:0});
+  const share = T.fgCust ? topCust.value/T.fgCust*100 : 0;
+  if (share > 40)
+    parts.push(`${hi(topCust.name)} holds ${hi(share.toFixed(0)+'%')} of customer finished-goods value (${inr(topCust.value)}) — dispatch planning for this account drives most of the FG capital.`);
+  if (p){
+    if (Math.abs(m.yarnStore.value-p.yarnStore.value)<1 && m.yarnStore.value>0)
+      parts.push(`Note: raw-material yarn (${inr(m.yarnStore.value)}) shows ${hi('zero movement')} for the month and should be physically verified.`);
+    const frozen = m.customers.filter(c=>{const x=custMap(p)[c.name];return c.value>50000&&x&&Math.abs(c.value-x.value)<1;});
+    if (frozen.length)
+      parts.push(`Stock for ${frozen.map(f=>hi(f.name)).join(', ')} has not moved since ${p.month}.`);
+  }
+  el.innerHTML = parts.join(' ');
+}
+function copySummary(){
+  const txt = document.getElementById('execText').innerText;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const b = document.querySelector('#execCard .btn');
+    const old = b.textContent; b.textContent = '✓ Copied';
+    setTimeout(()=>b.textContent=old, 1500);
+  });
 }
 
 // ---------- charts ----------
