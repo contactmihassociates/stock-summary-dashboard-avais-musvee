@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monthly Stock Summary Dashboard</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+<title>Concorde Textiles — Monthly Stock Summary</title>
+<link rel="icon" href="data:image/png;base64,__LOGO_B64__">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -13,9 +13,10 @@
 <style>
 :root{
   --bg:#0b0d14; --panel:#161927e6; --panel2:#1f2335; --border:#2b3047;
-  --text:#eceef6; --muted:#98a0bb; --accent:#5ab4f0; --accent2:#f4a261;
-  --good:#34d399; --bad:#f4647a; --warn:#fbbf24;
-  --c1:#5ab4f0; --c2:#f4a261; --c3:#34d399; --c4:#f4647a; --c5:#a78bfa; --c6:#2dd4bf; --c7:#f472b6;
+  --text:#eceef6; --muted:#98a0bb; --accent:#3da2ec; --accent2:#f4a261;
+  --brand:#0076ce; --brand-light:#7fbae6;
+  --good:#2bbd74; --bad:#f4647a; --warn:#fbbf24;
+  --c1:#3da2ec; --c2:#f4a261; --c3:#2bbd74; --c4:#f4647a; --c5:#a78bfa; --c6:#2dd4bf; --c7:#f472b6;
   --radius:14px; --gap:16px;
   --shadow:0 10px 30px -12px rgba(0,0,0,.55);
 }
@@ -24,24 +25,30 @@ html{scrollbar-color:#343a55 #12141f}
 body{font-family:'Inter','Segoe UI',-apple-system,Roboto,sans-serif;color:var(--text);line-height:1.45;font-size:14px;
   background:var(--bg);
   background-image:
-    radial-gradient(900px 500px at 85% -10%, rgba(90,180,240,.14), transparent 60%),
-    radial-gradient(800px 500px at -10% 10%, rgba(167,139,250,.12), transparent 60%),
-    radial-gradient(700px 600px at 50% 110%, rgba(45,212,191,.08), transparent 60%);
+    radial-gradient(900px 500px at 85% -10%, rgba(0,118,206,.18), transparent 60%),
+    radial-gradient(800px 500px at -10% 10%, rgba(127,186,230,.10), transparent 60%),
+    radial-gradient(700px 600px at 50% 110%, rgba(29,143,84,.10), transparent 60%);
   background-attachment:fixed}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:#343a55;border-radius:6px;border:2px solid #12141f}
 ::-webkit-scrollbar-track{background:#12141f}
 .wrap{max-width:1480px;margin:0 auto;padding:var(--gap)}
 header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
-  background:linear-gradient(135deg,rgba(38,52,82,.75),rgba(20,24,40,.85));
-  backdrop-filter:blur(10px);border:1px solid rgba(90,180,240,.22);
+  background:linear-gradient(135deg,rgba(0,76,134,.55),rgba(20,24,40,.85));
+  backdrop-filter:blur(10px);border:1px solid rgba(0,118,206,.35);
   border-radius:var(--radius);padding:18px 24px;margin-bottom:var(--gap);box-shadow:var(--shadow)}
-.brand{display:flex;gap:14px;align-items:center}
-.logo{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;
-  background:linear-gradient(135deg,#5ab4f0,#a78bfa);box-shadow:0 6px 18px -6px rgba(90,180,240,.6)}
+.brand{display:flex;gap:16px;align-items:center}
+.logo{height:52px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  background:#fff;padding:6px 14px;box-shadow:0 6px 18px -6px rgba(0,118,206,.55);text-decoration:none;
+  transition:transform .15s ease}
+.logo:hover{transform:scale(1.04)}
+.logo img{height:100%;display:block}
 header h1{font-size:19px;font-weight:700;letter-spacing:.2px;
-  background:linear-gradient(90deg,#fff,#aecdf2);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  background:linear-gradient(90deg,#fff,#7fbae6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 header .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.facts{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.facts span{font-size:10.5px;color:#aecdf2;background:rgba(0,118,206,.18);border:1px solid rgba(0,118,206,.4);
+  border-radius:20px;padding:2px 10px;letter-spacing:.3px}
 .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .controls label{font-size:12px;color:var(--muted)}
 .controls select{background:var(--panel2);color:var(--text);border:1px solid var(--border);
@@ -114,7 +121,9 @@ tr:hover td{background:#222636}
 .stage .k{font-size:11px;color:var(--muted)}
 .stage .d{font-size:11px;font-weight:600;margin-top:2px}
 .arrow{display:flex;align-items:center;color:var(--muted);font-size:16px}
-footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
+footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 20px;line-height:2}
+footer a{color:var(--brand-light);text-decoration:none}
+footer a:hover{text-decoration:underline}
 .btn-accent{border-color:rgba(90,180,240,.5);background:linear-gradient(135deg,rgba(90,180,240,.18),rgba(167,139,250,.14))}
 /* data modal */
 .modal-overlay{position:fixed;inset:0;background:rgba(5,7,14,.7);backdrop-filter:blur(4px);
@@ -149,10 +158,18 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
 <div class="wrap">
   <header>
     <div class="brand">
-      <div class="logo">📦</div>
+      <a class="logo" href="https://www.concordetextiles.in/" target="_blank" rel="noopener" title="concordetextiles.in">
+        <img src="data:image/png;base64,__LOGO_B64__" alt="Concorde Textiles">
+      </a>
       <div>
-        <h1>Monthly Stock Summary — Closing Stock Dashboard</h1>
+        <h1>Concorde Textiles — Monthly Stock Summary</h1>
         <div class="sub" id="subTitle"></div>
+        <div class="facts">
+          <span>Institutional terry exporter since 1984</span>
+          <span>~500 employees</span>
+          <span>9 t/day capacity</span>
+          <span>OEKO-TEX · DNV certified</span>
+        </div>
       </div>
     </div>
     <div class="controls">
@@ -250,7 +267,13 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
     <div class="tablewrap"><table id="rmTable"></table></div>
   </div>
 
-  <footer>Generated from monthly stock statement files · Update via <b>⚙ Manage Data</b> (browser) or <b>build_dashboard.py</b> (permanent) · All values in ₹ (Cr = Crore, L = Lakh)</footer>
+  <footer>
+    <b>Concorde Textiles</b> · Chennai, India ·
+    Tel <a href="tel:+914428475899">+91 44 2847 5899</a> / <a href="tel:+914428474770">2847 4770</a> ·
+    <a href="mailto:concorde@concordetextiles.in">concorde@concordetextiles.in</a> ·
+    <a href="https://www.concordetextiles.in/" target="_blank" rel="noopener">concordetextiles.in</a><br>
+    Generated from monthly stock statement files · Update via <b>⚙ Manage Data</b> (browser) or <b>build_dashboard.py</b> (permanent) · All values in ₹ (Cr = Crore, L = Lakh)
+  </footer>
 </div>
 
 <div class="modal-overlay" id="dataModal">
@@ -296,7 +319,7 @@ function assembleMonths(){
   MONTHS = Object.values(map).sort((a,b)=>monthKey(a.month)-monthKey(b.month));
 }
 assembleMonths();
-const PALETTE = ['#4ea8de','#f4a261','#2ecc71','#e85d6a','#a78bfa','#34d3c8','#f472b6','#facc15','#fb923c','#60a5fa'];
+const PALETTE = ['#3da2ec','#f4a261','#2bbd74','#f4647a','#a78bfa','#2dd4bf','#f472b6','#facc15','#fb923c','#7fbae6'];
 Chart.defaults.color = '#9aa1b9';
 Chart.defaults.borderColor = '#2c3145';
 Chart.defaults.font.family = "'Segoe UI',sans-serif";

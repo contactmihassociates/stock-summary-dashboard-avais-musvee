@@ -21,6 +21,11 @@ def main():
         template = f.read()
     payload = json.dumps({'months': months}, ensure_ascii=False)
     html = template.replace('/*__STOCK_DATA__*/', payload, 1)
+    logo_path = os.path.join(HERE, 'concorde_logo.png')
+    if os.path.exists(logo_path):
+        import base64
+        with open(logo_path, 'rb') as f:
+            html = html.replace('__LOGO_B64__', base64.b64encode(f.read()).decode())
     # Stock_Dashboard.html for local double-click use, index.html for web hosting (Vercel)
     for name in ('Stock_Dashboard.html', 'index.html'):
         out = os.path.join(HERE, name)
