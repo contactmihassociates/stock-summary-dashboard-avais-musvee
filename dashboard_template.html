@@ -248,6 +248,20 @@ footer a:hover{text-decoration:underline}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
+    <h3>Stitching Floor — WIP by Stage
+      <span class="tools">
+        <select id="swSel"></select>
+        <input type="search" id="swSearch" placeholder="Search product / customer…">
+        <button class="btn" onclick="exportSw()">⬇ CSV</button>
+      </span>
+    </h3>
+    <div class="grid g2b" style="margin-bottom:0">
+      <div class="chartbox tall"><canvas id="swChart"></canvas></div>
+      <div class="tablewrap" style="max-height:340px"><table id="swTable"></table></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
     <h3>Chemicals &amp; Consumables Register
       <span class="tools">
         <select id="chSel"></select>
@@ -418,6 +432,14 @@ function init(){
     rmFilter = e.target.value.trim().toLowerCase();
     renderRmTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
   };
+  document.getElementById('swSel').onchange = e=>{
+    swStageVal = e.target.value;
+    renderStitch(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
+  document.getElementById('swSearch').oninput = e=>{
+    swSearchVal = e.target.value.trim().toLowerCase();
+    renderStitch(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
   document.getElementById('chSel').onchange = e=>{
     chDeptVal = e.target.value;
     renderChemTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
@@ -454,6 +476,7 @@ function render(){
   renderAlerts(m,p,T,P);
   renderWip(m,p);
   renderChem(m,p);
+  renderStitch(m,p);
   renderChemTable(m,p);
   renderProducts(m,p);
   renderCustTable(m,p);
@@ -750,9 +773,11 @@ function renderAlerts(m,p,T,P){
         A.push({lv:'warn',ico:'🧶',t:`${staleRm.length} yarn lots show no movement`,
           s:`Worth ${inr(staleRm.reduce((s,r)=>s+r.value,0))} combined: ${staleRm.slice(0,4).map(r=>r.product+' ('+r.supplier+')').join(', ')}${staleRm.length>4?'…':''}. Check the RM register below.`});
     }
-    if (Math.abs(m.numbal.value-p.numbal.value)<1 && m.numbal.value>0)
+    if (Math.abs(m.numbal.value-p.numbal.value)<1 && m.numbal.value>0){
+      const inv = (m.numbalDetail||[]).map(n=>`${n.invoice} (${kg(n.kg)})`).join(', ');
       A.push({lv:'warn',ico:'🏭',t:'Numbal stock static',
-        s:`Numbal stock unchanged at ${inr(m.numbal.value)} (${kg(m.numbal.kg)}). Ageing location stock — consider liquidation plan.`});
+        s:`Numbal stock unchanged at ${inr(m.numbal.value)} (${kg(m.numbal.kg)})${inv?` across invoices ${inv}`:''}. Ageing location stock — consider liquidation plan.`});
+    }
     m.customers.forEach(c=>{
       const pv=pm[c.name]?pm[c.name].value:null;
       if (c.value>50000 && pv!==null && Math.abs(c.value-pv)<1)
@@ -842,6 +867,61 @@ function exportFg(){
     ['Customer','Product','Colour','Size','Pcs','Kg', p?`Prior Kg (${p.month})`:'Prior Kg'],
     fgRows(m,p).map(r=>[r.customer,r.product,r.colour,r.size,r.pcs,r.kg.toFixed(2),
       r.pkg===null?'':r.pkg.toFixed(2)]));
+}
+
+// ---------- stitching floor ----------
+let swSort={col:'kg',dir:-1}, swStageVal='all', swSearchVal='';
+function swRows(m){
+  let rows = m.stitchWip||[];
+  if (swStageVal!=='all') rows = rows.filter(r=>r.stage===swStageVal);
+  if (swSearchVal) rows = rows.filter(r=>
+    (r.product+' '+r.customer+' '+r.colour+' '+r.stage).toLowerCase().includes(swSearchVal));
+  return rows;
+}
+function renderStitch(m,p){
+  const sel = document.getElementById('swSel');
+  const all = m.stitchWip||[];
+  const stages = [...new Set(all.map(r=>r.stage))];
+  const keep = stages.includes(swStageVal) ? swStageVal : 'all';
+  sel.innerHTML = '<option value="all">All stages</option>' +
+    stages.map(s=>`<option${s===keep?' selected':''}>${s}</option>`).join('');
+  swStageVal = keep;
+  // chart: kg by stage (always all stages, current vs prior)
+  const agg = {}; all.forEach(r=>agg[r.stage]=(agg[r.stage]||0)+r.kg);
+  const sorted = Object.entries(agg).sort((a,b)=>b[1]-a[1]);
+  const datasets = [{label:m.month,data:sorted.map(s=>s[1]),backgroundColor:'#a78bfacc',borderRadius:3}];
+  if (p && p.stitchWip){
+    const pagg = {}; p.stitchWip.forEach(r=>pagg[r.stage]=(pagg[r.stage]||0)+r.kg);
+    datasets.push({label:p.month,data:sorted.map(s=>pagg[s[0]]||0),backgroundColor:'#9aa1b955',borderRadius:3});
+  }
+  mkChart('swChart',{type:'bar',
+    data:{labels:sorted.map(s=>s[0]),datasets},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{usePointStyle:true}},
+        title:{display:true,text:'Weight on the floor by stage',color:'#98a0bb',font:{size:11}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${kg(c.parsed.x)}`}}},
+      scales:{x:{ticks:{callback:v=>kg(v)},grid:{color:'#262a3c'}},y:{grid:{display:false},ticks:{font:{size:10}}}}}
+  });
+  // table
+  const rows = swRows(m);
+  const srt=[...rows].sort((a,b)=>{const k=swSort.col;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*swSort.dir;});
+  const totKg=rows.reduce((s,r)=>s+r.kg,0), totPcs=rows.reduce((s,r)=>s+r.pcs,0);
+  document.getElementById('swTable').innerHTML =
+    `<thead><tr><th data-c="stage">Stage</th><th data-c="customer">Customer</th><th data-c="product">Product</th>
+     <th data-c="colour">Colour</th><th class="r" data-c="pcs">Pcs</th><th class="r" data-c="kg">Kg</th></tr></thead><tbody>`+
+    srt.slice(0,250).map(r=>`<tr><td>${r.stage}</td><td>${r.customer||'—'}</td><td>${r.product}</td>
+      <td>${r.colour}</td><td class="r">${Math.round(r.pcs).toLocaleString('en-IN')}</td><td class="r">${r.kg.toFixed(1)}</td></tr>`).join('')+
+    `<tr style="font-weight:700;background:#222636"><td>TOTAL (${rows.length} items${rows.length>250?', top 250 shown':''})</td><td></td><td></td><td></td>
+      <td class="r">${Math.round(totPcs).toLocaleString('en-IN')}</td><td class="r">${totKg.toFixed(1)}</td></tr></tbody>`;
+  document.querySelectorAll('#swTable th[data-c]').forEach(th=>th.onclick=()=>{
+    const c=th.dataset.c; swSort = swSort.col===c?{col:c,dir:-swSort.dir}:{col:c,dir:-1};
+    renderStitch(m,p);});
+}
+function exportSw(){
+  const m = MONTHS[curIdx];
+  downloadCSV(`stitching_wip_${m.month}.csv`,
+    ['Stage','Customer','Product','Colour','Size','Pcs','Kg'],
+    swRows(m).map(r=>[r.stage,r.customer,r.product,r.colour,r.size,r.pcs,r.kg.toFixed(2)]));
 }
 
 // ---------- chemicals register ----------
@@ -1103,6 +1183,42 @@ function parseFinishGoodsSheet(ws){
   }
   return items;
 }
+function parseStitchingSheet(ws){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+  const items = [];
+  let stage = '';
+  for (const r of rows){
+    while (r.length < 10) r.push(null);
+    const a = r[0];
+    if (a !== null && typeof a !== 'number'){
+      let t = String(a).trim();
+      if (t && t !== 'S NO'){
+        t = t.replace(/\[.*?\]/g,'').replace(/\s+/g,' ').trim();
+        stage = t.toLowerCase().replace(/\b\w/g, c=>c.toUpperCase());
+      }
+      continue;
+    }
+    const product = xtext(r[3]);
+    if (product && product !== 'PRODUCT NAME' && stage){
+      const pcs = xnum(r[8]), kgv = xnum(r[9]);
+      if (pcs > 0 || kgv > 0)
+        items.push({stage, customer:xtext(r[1]), product, colour:xtext(r[4]), size:xtext(r[5]), pcs, kg:kgv});
+    }
+  }
+  return items;
+}
+function parseNumbalSheet(ws){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+  const items = [];
+  for (const r of rows){
+    while (r.length < 10) r.push(null);
+    if (typeof r[0] === 'number' && xtext(r[1])){
+      const w = xnum(r[9]);
+      if (w > 0) items.push({invoice:xtext(r[1]), kg:w});
+    }
+  }
+  return items;
+}
 function parseChemDetailSheet(ws, dept){
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
   const items = [];
@@ -1136,6 +1252,8 @@ function parseStatementFile(file){
       if (wb.SheetNames.includes(sheet))
         data.chemDetail = data.chemDetail.concat(parseChemDetailSheet(wb.Sheets[sheet], dept));
     });
+    data.stitchWip = wb.SheetNames.includes('STitching WIP') ? parseStitchingSheet(wb.Sheets['STitching WIP']) : [];
+    data.numbalDetail = wb.SheetNames.includes(' Numbal ') ? parseNumbalSheet(wb.Sheets[' Numbal ']) : [];
     return data;
   });
 }

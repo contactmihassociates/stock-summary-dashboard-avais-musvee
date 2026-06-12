@@ -187,6 +187,40 @@ def parse_finish_goods(ws):
     return items
 
 
+def parse_stitching(ws):
+    """Stage-wise stitching floor WIP: sections are stages, rows are garments."""
+    items = []
+    stage = ''
+    for r in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=10):
+        a = r[0].value
+        if a is not None and not isinstance(a, (int, float)):
+            t = str(a).strip()
+            if t and t != 'S NO':
+                t = re.sub(r'\[.*?\]', '', t)            # drop bracket notes
+                t = re.sub(r'\s+', ' ', t).strip().title()
+                stage = t
+            continue
+        product = cell_text(r[3].value)
+        if product and product != 'PRODUCT NAME' and stage:
+            pcs, kgv = num(r[8].value), num(r[9].value)
+            if pcs > 0 or kgv > 0:
+                items.append({'stage': stage, 'customer': cell_text(r[1].value),
+                              'product': product, 'colour': cell_text(r[4].value),
+                              'size': cell_text(r[5].value), 'pcs': pcs, 'kg': kgv})
+    return items
+
+
+def parse_numbal(ws):
+    """Invoice-level Numbal stock: invoice number + net weight."""
+    items = []
+    for r in ws.iter_rows(min_row=3, max_row=ws.max_row, max_col=10):
+        if isinstance(r[0].value, (int, float)) and cell_text(r[1].value):
+            w = num(r[9].value)
+            if w > 0:
+                items.append({'invoice': cell_text(r[1].value), 'kg': w})
+    return items
+
+
 def parse_chem_detail(ws, dept):
     """Item rows PRODUCT NAME | KGS | RATE | VALUE used by DYEING/RO/BOILER/SIZING."""
     items = []
@@ -248,6 +282,8 @@ def main():
                             ('BOILER', 'Boiler'), ('SIZING', 'Sizing')]:
             if sheet in wb.sheetnames:
                 data['chemDetail'] += parse_chem_detail(wb[sheet], dept)
+        data['stitchWip'] = parse_stitching(wb['STitching WIP']) if 'STitching WIP' in wb.sheetnames else []
+        data['numbalDetail'] = parse_numbal(wb[' Numbal ']) if ' Numbal ' in wb.sheetnames else []
         months.append(data)
 
     months.sort(key=lambda d: month_key(d['month']))
