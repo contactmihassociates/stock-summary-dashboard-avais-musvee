@@ -187,6 +187,26 @@ def parse_finish_goods(ws):
     return items
 
 
+def parse_chem_detail(ws, dept):
+    """Item rows PRODUCT NAME | KGS | RATE | VALUE used by DYEING/RO/BOILER/SIZING."""
+    items = []
+    for r in ws.iter_rows(min_row=4, max_row=ws.max_row, max_col=6):
+        product = cell_text(r[1].value)
+        if not product or product.lower() in ('total', 'product name'):
+            continue
+        if product.upper().startswith(('CHEMICALS', 'BOILER STOCK', 'DEPARTMENT')):
+            continue
+        # yarn/WIP sections on the same sheet have text (count/supplier) in the
+        # KGS column - real chemical rows are numeric or blank there
+        if isinstance(r[2].value, str) and r[2].value.strip():
+            continue
+        kg, rate, val = num(r[2].value), num(r[3].value), num(r[4].value)
+        if kg > 0 or val > 0:
+            items.append({'dept': dept, 'product': product,
+                          'kg': kg, 'rate': rate, 'value': val})
+    return items
+
+
 def parse_store_rm(ws):
     """Raw material yarn detail: product, supplier, kg, rate, value."""
     items = []
@@ -223,6 +243,11 @@ def main():
         data['file'] = fname
         data['rawMaterial'] = parse_store_rm(wb['Store - RM']) if 'Store - RM' in wb.sheetnames else []
         data['products'] = parse_finish_goods(wb['Finish Goods']) if 'Finish Goods' in wb.sheetnames else []
+        data['chemDetail'] = []
+        for sheet, dept in [('DYEING', 'Dyeing'), ('RO', 'RO'),
+                            ('BOILER', 'Boiler'), ('SIZING', 'Sizing')]:
+            if sheet in wb.sheetnames:
+                data['chemDetail'] += parse_chem_detail(wb[sheet], dept)
         months.append(data)
 
     months.sort(key=lambda d: month_key(d['month']))

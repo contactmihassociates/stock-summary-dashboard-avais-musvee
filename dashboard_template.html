@@ -248,6 +248,17 @@ footer a:hover{text-decoration:underline}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
+    <h3>Chemicals &amp; Consumables Register
+      <span class="tools">
+        <select id="chSel"></select>
+        <input type="search" id="chSearch" placeholder="Search chemical…">
+        <button class="btn" onclick="exportChem()">⬇ CSV</button>
+      </span>
+    </h3>
+    <div class="tablewrap" style="max-height:320px"><table id="chTable"></table></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
     <h3>Finished Goods — Product Explorer
       <span class="tools">
         <select id="fgCust"></select>
@@ -407,6 +418,14 @@ function init(){
     rmFilter = e.target.value.trim().toLowerCase();
     renderRmTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
   };
+  document.getElementById('chSel').onchange = e=>{
+    chDeptVal = e.target.value;
+    renderChemTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
+  document.getElementById('chSearch').oninput = e=>{
+    chSearchVal = e.target.value.trim().toLowerCase();
+    renderChemTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
   document.getElementById('fgCust').onchange = e=>{
     fgCustVal = e.target.value;
     renderProducts(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
@@ -435,6 +454,7 @@ function render(){
   renderAlerts(m,p,T,P);
   renderWip(m,p);
   renderChem(m,p);
+  renderChemTable(m,p);
   renderProducts(m,p);
   renderCustTable(m,p);
   renderRmTable(m,p);
@@ -824,6 +844,46 @@ function exportFg(){
       r.pkg===null?'':r.pkg.toFixed(2)]));
 }
 
+// ---------- chemicals register ----------
+let chSort={col:'value',dir:-1}, chDeptVal='all', chSearchVal='';
+function chKey(r){ return r.dept+'|'+r.product; }
+function chRows(m,p){
+  const pm = {};
+  if (p) (p.chemDetail||[]).forEach(r=>pm[chKey(r)]=r);
+  let rows = (m.chemDetail||[]).map(r=>({...r, pv: p ? (pm[chKey(r)]?pm[chKey(r)].value:0) : null}));
+  if (chDeptVal!=='all') rows = rows.filter(r=>r.dept===chDeptVal);
+  if (chSearchVal) rows = rows.filter(r=>(r.product+' '+r.dept).toLowerCase().includes(chSearchVal));
+  return rows;
+}
+function renderChemTable(m,p){
+  const sel = document.getElementById('chSel');
+  const depts = [...new Set((m.chemDetail||[]).map(r=>r.dept))];
+  const keep = depts.includes(chDeptVal) ? chDeptVal : 'all';
+  sel.innerHTML = '<option value="all">All departments</option>' +
+    depts.map(d=>`<option${d===keep?' selected':''}>${d}</option>`).join('');
+  chDeptVal = keep;
+  const rows = chRows(m,p);
+  const sorted=[...rows].sort((a,b)=>{const k=chSort.col;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*chSort.dir;});
+  const tot=rows.reduce((s,r)=>s+r.value,0);
+  document.getElementById('chTable').innerHTML =
+    `<thead><tr><th data-c="dept">Dept</th><th data-c="product">Item</th><th class="r" data-c="kg">Qty</th>
+     <th class="r" data-c="rate">Rate</th><th class="r" data-c="value">Value</th><th class="r">Share</th><th class="r">MoM Δ</th></tr></thead><tbody>`+
+    sorted.map(r=>`<tr><td>${r.dept}</td><td>${r.product}</td><td class="r">${r.kg?kg(r.kg):'—'}</td>
+      <td class="r">${r.rate?('₹'+r.rate.toFixed(2)):'—'}</td><td class="r">${inr(r.value)}</td>
+      <td class="r">${tot?(r.value/tot*100).toFixed(1):'0'}%</td><td class="r">${deltaHtml(r.value,r.pv)}</td></tr>`).join('')+
+    `<tr style="font-weight:700;background:#222636"><td>TOTAL (${rows.length} items)</td><td></td><td></td><td></td>
+      <td class="r">${inr(tot)}</td><td colspan="2"></td></tr></tbody>`;
+  document.querySelectorAll('#chTable th[data-c]').forEach(th=>th.onclick=()=>{
+    const c=th.dataset.c; chSort = chSort.col===c?{col:c,dir:-chSort.dir}:{col:c,dir:-1};
+    renderChemTable(m,p);});
+}
+function exportChem(){
+  const m = MONTHS[curIdx], p = (prevIdx!==curIdx)?MONTHS[prevIdx]:null;
+  downloadCSV(`chemicals_${m.month}.csv`,
+    ['Department','Item','Qty (kg)','Rate','Value (Rs)', p?`Prior value (${p.month})`:'Prior value'],
+    chRows(m,p).map(r=>[r.dept,r.product,r.kg,r.rate,r.value.toFixed(2),r.pv===null?'':r.pv.toFixed(2)]));
+}
+
 // ---------- tables ----------
 let custSort={col:'value',dir:-1}, rmSort={col:'value',dir:-1};
 let custFilter='', rmFilter='';
@@ -1043,6 +1103,22 @@ function parseFinishGoodsSheet(ws){
   }
   return items;
 }
+function parseChemDetailSheet(ws, dept){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+  const items = [];
+  for (let i = 3; i < rows.length; i++){
+    const r = rows[i]; if (!r) continue;
+    while (r.length < 6) r.push(null);
+    const product = xtext(r[1]);
+    if (!product || ['total','product name'].includes(product.toLowerCase())) continue;
+    const up = product.toUpperCase();
+    if (up.startsWith('CHEMICALS') || up.startsWith('BOILER STOCK') || up.startsWith('DEPARTMENT')) continue;
+    if (typeof r[2] === 'string' && r[2].trim()) continue;  // yarn/WIP sections
+    const kgv = xnum(r[2]), rate = xnum(r[3]), val = xnum(r[4]);
+    if (kgv > 0 || val > 0) items.push({dept, product, kg:kgv, rate, value:val});
+  }
+  return items;
+}
 function parseStatementFile(file){
   return file.arrayBuffer().then(buf=>{
     const wb = XLSX.read(buf, {type:'array'});
@@ -1055,6 +1131,11 @@ function parseStatementFile(file){
     data.file = file.name;
     data.rawMaterial = wb.SheetNames.includes('Store - RM') ? parseStoreRmSheet(wb.Sheets['Store - RM']) : [];
     data.products = wb.SheetNames.includes('Finish Goods') ? parseFinishGoodsSheet(wb.Sheets['Finish Goods']) : [];
+    data.chemDetail = [];
+    [['DYEING','Dyeing'],['RO','RO'],['BOILER','Boiler'],['SIZING','Sizing']].forEach(([sheet,dept])=>{
+      if (wb.SheetNames.includes(sheet))
+        data.chemDetail = data.chemDetail.concat(parseChemDetailSheet(wb.Sheets[sheet], dept));
+    });
     return data;
   });
 }
