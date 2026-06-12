@@ -105,6 +105,8 @@ tr:hover td{background:#222636}
 .calcline{display:flex;gap:18px;font-size:12px;color:var(--muted);margin:0 2px 12px;flex-wrap:wrap}
 .calcline b{color:var(--text);font-variant-numeric:tabular-nums}
 .calcline .err{color:var(--bad);font-weight:600}
+.lnk{color:var(--brand-light);cursor:pointer}
+.lnk:hover{text-decoration:underline}
 .icobtn{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 5px;border-radius:5px;color:var(--muted)}
 .icobtn:hover{background:#2a2f44;color:#fff}
 .chartbox{position:relative;height:270px}
@@ -265,6 +267,16 @@ footer a{color:var(--brand-light);text-decoration:none}
     <div class="frow"><label>Opening rate ₹</label><input type="number" id="iRate" min="0" step="any" value="0"></div>
     <div class="frow"><label>Reorder level</label><input type="number" id="iReorder" min="0" step="any" value="0"></div>
     <div style="text-align:right;margin-top:14px"><button class="btn primary" onclick="saveItem()">Save Item</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="ledgerModal">
+  <div class="modal" style="max-width:760px">
+    <h3 id="ledgerTitle">Ledger <span style="display:flex;gap:8px">
+      <button class="btn" onclick="exportLedger()">⬇ CSV</button>
+      <button class="btn" onclick="$('ledgerModal').classList.remove('open')">✕</button></span></h3>
+    <div class="calcline" id="ledgerSummary" style="margin-bottom:10px"></div>
+    <div class="tablewrap" style="max-height:380px"><table id="ledgerTable"></table></div>
   </div>
 </div>
 
@@ -519,7 +531,7 @@ function renderRegister(){
       const open = position(e.itemId, {uptoDate:e.date, excludeId:e.id});
       const close = open + e.received - e.issued - e.damaged;
       const locked = isLocked(e.date);
-      return `<tr><td>${e.date}${locked?' 🔒':''}</td><td>${it.name}</td><td>${e.batch||'—'}</td>
+      return `<tr><td>${e.date}${locked?' 🔒':''}</td><td><span class="lnk" onclick="openLedger('${e.itemId}')">${it.name}</span></td><td>${e.batch||'—'}</td>
         <td class="r">${qty(open)}</td><td class="r">${e.received?qty(e.received):'—'}</td>
         <td class="r">${e.issued?qty(e.issued):'—'}</td><td class="r">${e.damaged?qty(e.damaged):'—'}</td>
         <td class="r"><b>${qty(close)}</b></td><td class="r">${e.rate?('₹'+e.rate):'—'}</td>
@@ -579,7 +591,7 @@ function renderAccounts(){
   $('valTable').innerHTML =
     `<thead><tr><th>Item</th><th>Category</th><th class="r">Qty on hand</th><th class="r">${DB.settings.method} rate</th>
      <th class="r">Value</th><th class="r">Share</th></tr></thead><tbody>`+
-    vrows.map(x=>`<tr><td>${x.it.name}</td><td>${x.it.category||'—'}</td>
+    vrows.map(x=>`<tr><td><span class="lnk" onclick="openLedger('${x.it.id}')">${x.it.name}</span></td><td>${x.it.category||'—'}</td>
       <td class="r">${qty(x.v.qty, x.it.unit)}</td><td class="r">₹${x.v.rate.toFixed(2)}</td>
       <td class="r">${inr(x.v.value)}</td><td class="r">${tot?(x.v.value/tot*100).toFixed(1):0}%</td></tr>`).join('')+
     `<tr style="font-weight:700;background:#222636"><td>TOTAL</td><td></td><td></td><td></td>
@@ -731,7 +743,7 @@ function renderItems(){
     rows.map(it=>{
       const v = valuation(it.id);
       const lowFlag = (it.reorder||0)>0 && v.qty<=it.reorder;
-      return `<tr><td>${it.name}</td><td>${it.category||'—'}</td><td>${it.unit}</td>
+      return `<tr><td><span class="lnk" onclick="openLedger('${it.id}')">${it.name}</span></td><td>${it.category||'—'}</td><td>${it.unit}</td>
         <td class="r">${qty(it.opening)}</td><td class="r">₹${(it.openingRate||0).toFixed(2)}</td>
         <td class="r"><b>${qty(v.qty)}</b></td><td class="r">${inr(v.value)}</td>
         <td class="r">${qty(it.reorder||0)}</td>
@@ -772,6 +784,55 @@ function seedFromStatement(silent){
   persist(); renderAll();
   if (!silent) toast(`Seeded ${n} items with opening stock from the ${m.month} statement`);
 }
+
+// ---------------- item ledger ----------------
+let ledgerItemId = null;
+function openLedger(itemId){
+  const it = itemById(itemId); if (!it) return;
+  ledgerItemId = itemId;
+  const v = valuation(itemId);
+  const rows = entriesSorted().filter(e=>e.itemId===itemId);
+  let bal = it.opening;
+  let totR=0, totI=0, totD=0;
+  const body = rows.map(e=>{
+    const skip = e.status==='flagged';
+    if (!skip){ bal += e.received - e.issued - e.damaged; totR+=e.received; totI+=e.issued; totD+=e.damaged; }
+    return `<tr${skip?' style="opacity:.45"':''}><td>${e.date}</td><td>${e.batch||'—'}</td>
+      <td class="r">${e.received?qty(e.received):'—'}</td><td class="r">${e.issued?qty(e.issued):'—'}</td>
+      <td class="r">${e.damaged?qty(e.damaged):'—'}</td><td class="r"><b>${skip?'—':qty(bal)}</b></td>
+      <td><span class="badge ${e.status}">${e.status}</span></td><td>${e.by||''}</td></tr>`;
+  }).join('');
+  $('ledgerTitle').firstChild.textContent = it.name + ' — Ledger ';
+  $('ledgerSummary').innerHTML =
+    `<span>Opening: <b>${qty(it.opening, it.unit)}</b></span><span>Received: <b>${qty(totR)}</b></span>`+
+    `<span>Issued: <b>${qty(totI)}</b></span><span>Damaged: <b>${qty(totD)}</b></span>`+
+    `<span>On hand: <b style="color:var(--good)">${qty(v.qty, it.unit)}</b></span>`+
+    `<span>Value (${DB.settings.method}): <b>${inr(v.value)}</b> @ ₹${v.rate.toFixed(2)}</span>`;
+  $('ledgerTable').innerHTML =
+    `<thead><tr><th>Date</th><th>Batch</th><th class="r">Received</th><th class="r">Issued</th>
+     <th class="r">Damaged</th><th class="r">Balance</th><th>Status</th><th>By</th></tr></thead><tbody>`+
+    `<tr><td colspan="5" style="color:var(--muted)">Opening balance</td>
+     <td class="r"><b>${qty(it.opening)}</b></td><td></td><td></td></tr>` + body +
+    (rows.length?'':'<tr><td colspan="8" style="color:var(--muted)">No movements yet.</td></tr>')+'</tbody>';
+  $('ledgerModal').classList.add('open');
+}
+function exportLedger(){
+  const it = itemById(ledgerItemId); if (!it) return;
+  let bal = it.opening;
+  const rows = [['', 'Opening', '', '', '', bal.toFixed(2), '', '']];
+  entriesSorted().filter(e=>e.itemId===ledgerItemId).forEach(e=>{
+    if (e.status!=='flagged') bal += e.received - e.issued - e.damaged;
+    rows.push([e.date, e.batch, e.received, e.issued, e.damaged,
+      e.status==='flagged'?'excluded':bal.toFixed(2), e.status, e.by]);
+  });
+  const esc = v=>{const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const csv = [['Date','Batch','Received','Issued','Damaged','Balance','Status','By'],...rows]
+    .map(r=>r.map(esc).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download = 'ledger_' + it.name.replace(/\W+/g,'_') + '.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+$('ledgerModal').onclick = e=>{ if (e.target.id==='ledgerModal') $('ledgerModal').classList.remove('open'); };
 
 // ---------------- audit ----------------
 function renderAudit(){
