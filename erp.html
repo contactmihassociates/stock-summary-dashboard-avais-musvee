@@ -255,6 +255,7 @@ footer a{color:var(--brand-light);text-decoration:none}
       <h3>Item Master
         <span style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn primary" onclick="openItemModal()">＋ New Item</button>
+          <button class="btn" onclick="openStockTake()">📋 Stock Take</button>
           <button class="btn" id="seedBtn" onclick="seedFromStatement()">⚡ Seed from stock statement</button>
           <input type="search" id="itemSearch" placeholder="Search…">
         </span></h3>
@@ -287,6 +288,22 @@ footer a{color:var(--brand-light);text-decoration:none}
     <div class="frow"><label>Opening rate ₹</label><input type="number" id="iRate" min="0" step="any" value="0"></div>
     <div class="frow"><label>Reorder level</label><input type="number" id="iReorder" min="0" step="any" value="0"></div>
     <div style="text-align:right;margin-top:14px"><button class="btn primary" onclick="saveItem()">Save Item</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="stModal">
+  <div class="modal" style="max-width:720px">
+    <h3>📋 Physical Stock Take
+      <span style="display:flex;gap:8px;align-items:center">
+        <input type="date" id="stDate">
+        <button class="btn" onclick="$('stModal').classList.remove('open')">✕</button></span></h3>
+    <input type="search" id="stSearch" placeholder="Filter items…" style="width:100%;margin-bottom:10px">
+    <div class="tablewrap" style="max-height:380px"><table id="stTable"></table></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <span class="note" style="margin:0">Enter only the items you counted — blanks are skipped.
+        Shortages post as <b>damaged</b>, excess as <b>received</b> at the current method rate; all go to pending review.</span>
+      <button class="btn primary" onclick="applyStockTake()">Post adjustments</button>
+    </div>
   </div>
 </div>
 
@@ -959,6 +976,53 @@ function exportLedger(){
 }
 $('ledgerModal').onclick = e=>{ if (e.target.id==='ledgerModal') $('ledgerModal').classList.remove('open'); };
 
+// ---------------- stock take ----------------
+function openStockTake(){
+  if (role()==='viewer') return toast('Viewers cannot post adjustments', true);
+  $('stDate').value = todayStr();
+  renderStockTake();
+  $('stModal').classList.add('open');
+  $('stSearch').focus();
+}
+function renderStockTake(){
+  const q = ($('stSearch').value||'').toLowerCase();
+  const rows = DB.items.filter(i=>!q || (i.name+' '+(i.category||'')).toLowerCase().includes(q));
+  $('stTable').innerHTML =
+    '<thead><tr><th>Item</th><th class="r">Book Qty</th><th class="r" style="width:140px">Physical Count</th></tr></thead><tbody>'+
+    rows.map(it=>{
+      const book = position(it.id, {});
+      return `<tr><td>${it.name}</td><td class="r">${qty(book, it.unit)}</td>
+        <td class="r"><input type="number" min="0" step="any" class="stIn" data-id="${it.id}" data-book="${book}"
+          style="width:120px" placeholder="${qty(book)}"></td></tr>`;
+    }).join('')+'</tbody>';
+}
+function applyStockTake(){
+  const date = $('stDate').value || todayStr();
+  if (isLocked(date)) return toast(monthOf(date)+' is locked', true);
+  let posted = 0, skipped = 0;
+  document.querySelectorAll('.stIn').forEach(inp=>{
+    if (inp.value === '') return;
+    const phys = +inp.value, book = +inp.dataset.book;
+    if (phys < 0) { skipped++; return; }
+    const diff = phys - book;
+    if (Math.abs(diff) < 1e-9) return;
+    const v = valuation(inp.dataset.id);
+    DB.entries.push({id:nid('E'), date, itemId:inp.dataset.id, batch:'STOCK-TAKE',
+      received: diff>0 ? diff : 0, issued:0, damaged: diff<0 ? -diff : 0,
+      rate: diff>0 ? +(v.rate.toFixed(2)) : 0,
+      note:`Stock take adjustment (book ${book.toFixed(2)} → physical ${phys})`,
+      status:'pending', flag:'', by:role(), ts:new Date().toISOString()});
+    posted++;
+  });
+  if (!posted) return toast('Nothing to post — no counted item differs from book', true);
+  audit('stock take', `${posted} adjustments on ${date}`);
+  persist(); renderAll();
+  $('stModal').classList.remove('open');
+  toast(`${posted} adjustment entries posted to pending review${skipped?` (${skipped} negative counts skipped)`:''}`);
+}
+$('stSearch') && ($('stSearch').oninput = renderStockTake);
+$('stModal').onclick = e=>{ if (e.target.id==='stModal') $('stModal').classList.remove('open'); };
+
 // ---------------- audit ----------------
 function renderAudit(){
   $('auditTable').innerHTML =
@@ -973,6 +1037,7 @@ function exportBackup(){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(DB,null,1)],{type:'application/json'}));
   a.download = 'stock_erp_backup_' + todayStr() + '.json'; a.click(); URL.revokeObjectURL(a.href);
+  DB.settings.lastBackup = todayStr();
   audit('backup exported',''); persist();
 }
 $('importFile').onchange = e=>{
@@ -1053,6 +1118,13 @@ $('accMonth').value = todayStr().slice(0,7);
 $('dashMonth').value = todayStr().slice(0,7);
 $('dashMonth').onchange = renderDash;
 $('methodSel').value = DB.settings.method;
+// backup hygiene: nag when real entries exist but no recent backup
+if (DB.entries.length > 0){
+  const last = DB.settings.lastBackup;
+  const weekAgo = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
+  if (!last || last < weekAgo)
+    setTimeout(()=>toast('⚠ No backup in the last 7 days — click ⬇ Backup to save a copy', true), 1200);
+}
 // first run: pre-populate the item master from the latest stock statement
 if (!DB.items.length){
   seedFromStatement(true);
