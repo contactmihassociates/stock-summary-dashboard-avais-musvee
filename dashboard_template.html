@@ -454,6 +454,7 @@ function renderChem(m,p){
 // ---------- alerts ----------
 function renderAlerts(m,p,T,P){
   const A=[];
+  (m.warnings||[]).forEach(w=>A.push({lv:'crit',ico:'🛑',t:'Data quality check failed',s:w}));
   const fgShare = T.fgCust ? Math.max(...m.customers.map(c=>c.value))/T.fgCust*100 : 0;
   const topCust = m.customers.reduce((a,b)=>a.value>b.value?a:b,{name:'-',value:0});
   if (fgShare>50) A.push({lv:'crit',ico:'🎯',t:'Customer concentration risk',

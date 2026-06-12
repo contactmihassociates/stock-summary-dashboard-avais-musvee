@@ -134,6 +134,24 @@ def parse_summary(ws):
     for r in rows:
         if any(v is not None and 'GRAND TOTAL' in str(v) for v in r) and num(r[6]) > 0:
             out['grandTotal'] = num(r[6])
+
+    # Data-quality cross-check: components should reproduce the sheet's grand total
+    comp = (out['yarnStore']['value']
+            + sum(c['value'] for c in out['chemicals'])
+            + sum(w['value'] for w in out['wip'])
+            + out['blanketStock']['value']
+            + sum(c['value'] for c in out['customers'])
+            + out['numbal']['value'])
+    out['warnings'] = []
+    diff = comp - out['grandTotal']
+    if abs(diff) > 1000:
+        out['warnings'].append(
+            f"Component sum (Rs {comp:,.0f}) differs from sheet GRAND TOTAL "
+            f"(Rs {out['grandTotal']:,.0f}) by Rs {diff:,.0f} - check the SUMMARY sheet formulas.")
+    if not out['customers']:
+        out['warnings'].append('No customer finished-goods rows were found in the SUMMARY sheet.')
+    if not out['wip']:
+        out['warnings'].append('No WIP rows were found in the SUMMARY sheet.')
     return out
 
 
