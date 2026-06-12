@@ -186,6 +186,7 @@ footer a:hover{text-decoration:underline}
       </select>
       <button class="btn" onclick="window.print()" title="Print or save as PDF">🖨 Print / PDF</button>
       <button class="btn btn-accent" onclick="openDataModal()" title="Upload new monthly statements">⚙ Manage Data</button>
+      <a class="btn btn-accent" href="erp.html" style="text-decoration:none" title="Registrar &amp; Accountant data-entry workspace">📝 Stock Register ERP</a>
     </div>
   </header>
 
@@ -313,8 +314,13 @@ footer a:hover{text-decoration:underline}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
-    <h3>Raw Material (Yarn) Holdings — Store RM
+    <h3>Raw Material (Yarn) Holdings — Store &amp; Loom
       <span class="tools">
+        <select id="rmLoc">
+          <option value="all">All locations</option>
+          <option value="Store">Store</option>
+          <option value="Loom (weft)">Loom (weft)</option>
+        </select>
         <input type="search" id="rmSearch" placeholder="Search yarn / supplier…">
         <button class="btn" onclick="exportRm()">⬇ CSV</button>
         <span class="hint">items with stock on hand</span>

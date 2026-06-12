@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Concorde Textiles — Stock Register ERP</title>
+<link rel="icon" href="data:image/png;base64,__LOGO_B64__">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
+<style>
+:root{
+  --bg:#0b0d14; --panel:#161927e6; --panel2:#1f2335; --border:#2b3047;
+  --text:#eceef6; --muted:#98a0bb; --accent:#3da2ec; --brand:#0076ce; --brand-light:#7fbae6;
+  --good:#2bbd74; --bad:#f4647a; --warn:#fbbf24;
+  --radius:14px; --gap:16px; --shadow:0 10px 30px -12px rgba(0,0,0,.55);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter','Segoe UI',sans-serif;color:var(--text);line-height:1.45;font-size:14px;
+  background:var(--bg);
+  background-image:radial-gradient(900px 500px at 85% -10%, rgba(0,118,206,.18), transparent 60%),
+    radial-gradient(800px 500px at -10% 10%, rgba(127,186,230,.10), transparent 60%);
+  background-attachment:fixed}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#343a55;border-radius:6px;border:2px solid #12141f}
+::-webkit-scrollbar-track{background:#12141f}
+.wrap{max-width:1480px;margin:0 auto;padding:var(--gap)}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+  background:linear-gradient(135deg,rgba(0,76,134,.55),rgba(20,24,40,.85));backdrop-filter:blur(10px);
+  border:1px solid rgba(0,118,206,.35);border-radius:var(--radius);padding:16px 22px;margin-bottom:var(--gap);box-shadow:var(--shadow)}
+.brand{display:flex;gap:14px;align-items:center}
+.logo{height:46px;border-radius:10px;background:#fff;padding:5px 12px;display:flex;align-items:center}
+.logo img{height:100%}
+header h1{font-size:18px;font-weight:700;background:linear-gradient(90deg,#fff,#7fbae6);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+header .sub{font-size:12px;color:var(--muted)}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.controls label{font-size:12px;color:var(--muted)}
+select,input,button{font-family:inherit}
+select,input[type=date],input[type=text],input[type=number],input[type=search]{
+  background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;
+  padding:7px 10px;font-size:13px}
+select:focus,input:focus{outline:none;border-color:var(--accent)}
+input:invalid{border-color:var(--bad)}
+.btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;
+  padding:8px 14px;font-size:12.5px;cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--accent);box-shadow:0 0 14px -4px rgba(90,180,240,.5)}
+.btn.primary{background:linear-gradient(135deg,#0076ce,#3da2ec);border-color:#3da2ec;font-weight:600}
+.btn.danger{border-color:rgba(244,100,122,.5);color:#f8a8b4}
+.btn.good{border-color:rgba(43,189,116,.5);color:#7fe0ae}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+/* tabs */
+.tabs{display:flex;gap:8px;margin-bottom:var(--gap);flex-wrap:wrap}
+.tab{padding:10px 18px;border-radius:10px;border:1px solid var(--border);cursor:pointer;
+  font-size:13px;font-weight:600;color:var(--muted);background:var(--panel)}
+.tab.active{color:#fff;border-color:var(--accent);background:linear-gradient(135deg,rgba(0,118,206,.35),rgba(20,24,40,.6))}
+.tab .cnt{display:inline-block;background:var(--bad);color:#fff;border-radius:9px;font-size:10px;
+  padding:1px 6px;margin-left:6px;vertical-align:1px}
+/* cards & layout */
+.card{background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);margin-bottom:var(--gap)}
+.card h3{font-size:13px;font-weight:700;margin-bottom:13px;display:flex;justify-content:space-between;
+  align-items:center;gap:10px;flex-wrap:wrap}
+.card h3 .hint{font-size:11px;color:var(--muted);font-weight:400}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
+.kpi{--kc:var(--accent);background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:15px 18px;position:relative;overflow:hidden;box-shadow:var(--shadow)}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kc)}
+.kpi.k2{--kc:#f4a261}.kpi.k3{--kc:#f4647a}.kpi.k4{--kc:#fbbf24}.kpi.k5{--kc:#2bbd74}
+.kpi .lbl{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.9px;font-weight:600}
+.kpi .val{font-size:23px;font-weight:800;margin:4px 0 2px;font-variant-numeric:tabular-nums}
+.kpi .chg{font-size:11.5px;color:var(--muted)}
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{position:sticky;top:0;text-align:left;padding:8px 10px;background:var(--panel2);color:var(--muted);
+  font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;z-index:2}
+th.r,td.r{text-align:right}
+td{padding:7px 10px;border-bottom:1px solid #262a3c;vertical-align:middle}
+tr:hover td{background:#222636}
+.tablewrap{max-height:420px;overflow:auto;border-radius:8px;border:1px solid var(--border)}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.3px}
+.badge.pending{background:#3a3416;color:var(--warn)}
+.badge.approved{background:#163d2a;color:var(--good)}
+.badge.flagged{background:#3d1a1f;color:var(--bad)}
+.badge.locked{background:#222a44;color:var(--brand-light)}
+.badge.open{background:#16303d;color:var(--accent)}
+.badge.low{background:#3d1a1f;color:var(--bad)}
+.badge.dead{background:#3a3416;color:var(--warn)}
+.badge.ok{background:#163d2a;color:var(--good)}
+/* entry bar */
+.entrybar{display:grid;grid-template-columns:130px 1.6fr 110px repeat(3,minmax(86px,.7fr)) 110px 1fr auto;
+  gap:8px;align-items:end;background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+  padding:12px;margin-bottom:12px}
+.entrybar .f label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.6px;margin-bottom:3px}
+.entrybar .f input,.entrybar .f select{width:100%}
+.calcline{display:flex;gap:18px;font-size:12px;color:var(--muted);margin:0 2px 12px;flex-wrap:wrap}
+.calcline b{color:var(--text);font-variant-numeric:tabular-nums}
+.calcline .err{color:var(--bad);font-weight:600}
+.icobtn{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 5px;border-radius:5px;color:var(--muted)}
+.icobtn:hover{background:#2a2f44;color:#fff}
+.chartbox{position:relative;height:270px}
+.toast{position:fixed;bottom:22px;right:22px;background:#1d2payments;z-index:99}
+#toasts{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:99}
+.toastmsg{background:#1c2233;border:1px solid var(--border);border-left:3px solid var(--good);
+  border-radius:8px;padding:10px 16px;font-size:12.5px;box-shadow:var(--shadow);animation:fadein .2s}
+.toastmsg.err{border-left-color:var(--bad)}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+.modal-overlay{position:fixed;inset:0;background:rgba(5,7,14,.7);backdrop-filter:blur(4px);
+  display:none;align-items:flex-start;justify-content:center;z-index:50;padding:6vh 16px;overflow-y:auto}
+.modal-overlay.open{display:flex}
+.modal{background:#171a28;border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:0 24px 60px -20px rgba(0,0,0,.8);max-width:560px;width:100%;padding:20px 22px}
+.modal h3{font-size:15px;font-weight:700;display:flex;justify-content:space-between;margin-bottom:14px}
+.modal .frow{display:grid;grid-template-columns:130px 1fr;gap:10px;align-items:center;margin-bottom:10px;font-size:12.5px}
+.note{color:var(--muted);font-size:11.5px;line-height:1.6;margin-top:10px}
+footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px;line-height:2}
+footer a{color:var(--brand-light);text-decoration:none}
+@media(max-width:1000px){.grid2{grid-template-columns:1fr}.entrybar{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <a class="logo" href="index.html" title="Back to dashboard"><img src="data:image/png;base64,__LOGO_B64__" alt="Concorde Textiles"></a>
+      <div>
+        <h1>Stock Register ERP — Data Entry &amp; Approval</h1>
+        <div class="sub">Registrar entry → Accountant review &amp; lock → live executive view · <a href="index.html" style="color:var(--brand-light)">← back to summary dashboard</a></div>
+      </div>
+    </div>
+    <div class="controls">
+      <label>Role</label>
+      <select id="roleSel">
+        <option value="registrar">Stock Registrar</option>
+        <option value="accountant">Accountant</option>
+        <option value="viewer">Viewer</option>
+      </select>
+      <label>Valuation</label>
+      <select id="methodSel">
+        <option value="WAC">Weighted Avg</option>
+        <option value="FIFO">FIFO</option>
+        <option value="LIFO">LIFO</option>
+      </select>
+      <button class="btn" onclick="exportBackup()">⬇ Backup</button>
+      <button class="btn" onclick="document.getElementById('importFile').click()">⬆ Restore</button>
+      <input type="file" id="importFile" accept=".json" hidden>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="entry" onclick="showTab('entry')">📝 Entry Register</div>
+    <div class="tab" data-tab="accounts" onclick="showTab('accounts')">🧾 Accounts &amp; Approval <span class="cnt" id="pendCnt" style="display:none"></span></div>
+    <div class="tab" data-tab="dash" onclick="showTab('dash')">📊 Executive View</div>
+    <div class="tab" data-tab="items" onclick="showTab('items')">🏷 Item Master</div>
+    <div class="tab" data-tab="audit" onclick="showTab('audit')">🕘 Audit Log</div>
+  </div>
+
+  <!-- ============ ENTRY ============ -->
+  <section id="tab-entry">
+    <div class="card">
+      <h3><span id="entryTitle">New Movement Entry</span>
+        <span class="hint">Tab/Enter moves between fields · Ctrl+Enter saves · closing auto-calculates</span></h3>
+      <div class="entrybar" id="entrybar">
+        <div class="f"><label>Date</label><input type="date" id="eDate"></div>
+        <div class="f"><label>Item</label><select id="eItem"></select></div>
+        <div class="f"><label>Batch No</label><input type="text" id="eBatch" placeholder="optional"></div>
+        <div class="f"><label>Received</label><input type="number" id="eRecv" min="0" step="any" value="0"></div>
+        <div class="f"><label>Issued</label><input type="number" id="eIss" min="0" step="any" value="0"></div>
+        <div class="f"><label>Damaged</label><input type="number" id="eDmg" min="0" step="any" value="0"></div>
+        <div class="f"><label>Rate ₹/unit</label><input type="number" id="eRate" min="0" step="any" placeholder="for receipts"></div>
+        <div class="f"><label>Remark</label><input type="text" id="eNote" placeholder="optional"></div>
+        <div class="f"><button class="btn primary" id="saveBtn" onclick="saveEntry()">＋ Save (Ctrl+↵)</button>
+          <button class="btn" id="cancelEditBtn" onclick="cancelEdit()" style="display:none">✕</button></div>
+      </div>
+      <div class="calcline" id="calcline"></div>
+      <h3>Movement Register <span class="tools" style="display:flex;gap:8px">
+        <input type="month" id="regMonth">
+        <select id="regItemFilter"><option value="all">All items</option></select>
+        <button class="btn" onclick="exportRegister()">⬇ CSV</button></span></h3>
+      <div class="tablewrap"><table id="regTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ ACCOUNTS ============ -->
+  <section id="tab-accounts" style="display:none">
+    <div class="card">
+      <h3>Month-End Control
+        <span class="hint">approve or flag entries, then lock the month to freeze it</span></h3>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <input type="month" id="accMonth">
+        <span id="monthStatus"></span>
+        <button class="btn good" id="lockBtn" onclick="toggleLock()">🔒 Lock Month</button>
+        <button class="btn" id="approveAllBtn" onclick="approveAll()">✔ Approve all pending</button>
+      </div>
+      <div class="tablewrap"><table id="accTable"></table></div>
+      <p class="note">Locking freezes every entry in the month — the registrar can no longer add, edit or delete entries dated inside it. Flagged entries stay visible to the registrar with your note so they can correct and resubmit (corrections reset the entry to pending).</p>
+    </div>
+    <div class="card">
+      <h3>Stock Valuation <span class="hint" id="valHint"></span></h3>
+      <div class="tablewrap" style="max-height:330px"><table id="valTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="tab-dash" style="display:none">
+    <div class="kpis" id="dashKpis"></div>
+    <div class="grid2">
+      <div class="card"><h3>Daily Movement — <span id="dashMonthLbl"></span></h3>
+        <div class="chartbox"><canvas id="moveChart"></canvas></div></div>
+      <div class="card"><h3>Inventory Value by Category</h3>
+        <div class="chartbox"><canvas id="catChart"></canvas></div></div>
+    </div>
+    <div class="card"><h3>Attention List <span class="hint">low stock · dead stock · flagged entries</span></h3>
+      <div class="tablewrap" style="max-height:300px"><table id="attTable"></table></div></div>
+  </section>
+
+  <!-- ============ ITEMS ============ -->
+  <section id="tab-items" style="display:none">
+    <div class="card">
+      <h3>Item Master
+        <span style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" onclick="openItemModal()">＋ New Item</button>
+          <button class="btn" id="seedBtn" onclick="seedFromStatement()">⚡ Seed from stock statement</button>
+          <input type="search" id="itemSearch" placeholder="Search…">
+        </span></h3>
+      <div class="tablewrap"><table id="itemTable"></table></div>
+      <p class="note">Opening stock and opening rate define the starting position; every later movement comes from the entry register. Reorder level drives the Low-Stock alert on the executive view.</p>
+    </div>
+  </section>
+
+  <!-- ============ AUDIT ============ -->
+  <section id="tab-audit" style="display:none">
+    <div class="card">
+      <h3>Audit Trail <span class="hint">every change, newest first — stored with the data</span></h3>
+      <div class="tablewrap"><table id="auditTable"></table></div>
+    </div>
+  </section>
+
+  <footer>
+    <b>Concorde Textiles</b> · Stock Register ERP · data lives in this browser (use ⬇ Backup regularly / ⬆ Restore to move machines) ·
+    <a href="index.html">Monthly summary dashboard →</a>
+  </footer>
+</div>
+
+<div class="modal-overlay" id="itemModal">
+  <div class="modal">
+    <h3 id="itemModalTitle">New Item <button class="btn" onclick="closeItemModal()">✕</button></h3>
+    <div class="frow"><label>Item name</label><input type="text" id="iName" placeholder="e.g. 16's Karded Yarn"></div>
+    <div class="frow"><label>Category</label><input type="text" id="iCat" list="catList" placeholder="Yarn / Chemical / Fuel…"><datalist id="catList"></datalist></div>
+    <div class="frow"><label>Unit</label><select id="iUnit"><option>kg</option><option>pcs</option><option>ltr</option><option>mtr</option></select></div>
+    <div class="frow"><label>Opening stock</label><input type="number" id="iOpen" min="0" step="any" value="0"></div>
+    <div class="frow"><label>Opening rate ₹</label><input type="number" id="iRate" min="0" step="any" value="0"></div>
+    <div class="frow"><label>Reorder level</label><input type="number" id="iReorder" min="0" step="any" value="0"></div>
+    <div style="text-align:right;margin-top:14px"><button class="btn primary" onclick="saveItem()">Save Item</button></div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+const SEED = /*__STOCK_DATA__*/;
+const KEY = 'stockERP_v1';
+Chart.defaults.color = '#9aa1b9'; Chart.defaults.borderColor = '#2c3145';
+Chart.defaults.font.family = "'Inter',sans-serif";
+
+// ---------------- persistence ----------------
+function blankDB(){ return {items:[], entries:[], locks:{}, log:[], settings:{method:'WAC'}, seq:1}; }
+let DB = blankDB();
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.items) DB = Object.assign(blankDB(), s); } catch(e){}
+function persist(){
+  try { localStorage.setItem(KEY, JSON.stringify(DB)); }
+  catch(e){ toast('Could not save — browser storage full?', true); }
+}
+function nid(p){ return p + (DB.seq++); }
+function audit(action, detail){
+  DB.log.unshift({ts: new Date().toISOString(), user: role(), action, detail});
+  if (DB.log.length > 2000) DB.log.length = 2000;
+}
+
+// ---------------- helpers ----------------
+const $ = id => document.getElementById(id);
+function role(){ return $('roleSel').value; }
+function inr(v){
+  const a = Math.abs(v);
+  if (a >= 1e7) return '₹' + (v/1e7).toFixed(2) + ' Cr';
+  if (a >= 1e5) return '₹' + (v/1e5).toFixed(2) + ' L';
+  return '₹' + Math.round(v).toLocaleString('en-IN');
+}
+function qty(v, unit){ return (+v).toLocaleString('en-IN', {maximumFractionDigits:2}) + (unit?' '+unit:''); }
+function todayStr(){ const d = new Date(); return d.toISOString().slice(0,10); }
+function monthOf(date){ return String(date).slice(0,7); }
+function isLocked(date){ return !!DB.locks[monthOf(date)]; }
+function itemById(id){ return DB.items.find(i=>i.id===id); }
+function toast(msg, err){
+  const d = document.createElement('div');
+  d.className = 'toastmsg' + (err?' err':''); d.textContent = msg;
+  $('toasts').appendChild(d);
+  setTimeout(()=>d.remove(), 3500);
+}
+function entriesSorted(){
+  return [...DB.entries].sort((a,b)=> a.date===b.date ? (a.ts<b.ts?-1:1) : (a.date<b.date?-1:1));
+}
+
+// ---------------- stock & valuation engine ----------------
+// Position = opening + received - issued - damaged over all non-flagged entries (optionally up to a date / excluding an entry)
+function position(itemId, {uptoDate=null, excludeId=null}={}){
+  const it = itemById(itemId); if (!it) return 0;
+  let q = it.opening;
+  for (const e of DB.entries){
+    if (e.itemId !== itemId || e.id === excludeId || e.status === 'flagged') continue;
+    if (uptoDate && e.date > uptoDate) continue;
+    q += e.received - e.issued - e.damaged;
+  }
+  return q;
+}
+// Lot-based valuation per item honouring FIFO / LIFO / WAC
+function valuation(itemId){
+  const it = itemById(itemId); if (!it) return {qty:0, value:0, rate:0};
+  const method = DB.settings.method;
+  let lots = it.opening > 0 ? [{q:it.opening, r:it.openingRate||0}] : [];
+  let wacQ = it.opening, wacV = it.opening * (it.openingRate||0);
+  for (const e of entriesSorted()){
+    if (e.itemId !== itemId || e.status === 'flagged') continue;
+    if (e.received > 0){
+      const r = e.rate || (lots.length ? lots[lots.length-1].r : it.openingRate||0);
+      lots.push({q:e.received, r});
+      wacV += e.received * r; wacQ += e.received;
+    }
+    let out = e.issued + e.damaged;
+    if (out > 0){
+      if (method === 'WAC'){
+        const avg = wacQ > 0 ? wacV/wacQ : 0;
+        wacQ -= out; wacV -= out*avg;
+        if (wacQ < 0){ wacQ = 0; wacV = 0; }
+      } else {
+        while (out > 0 && lots.length){
+          const lot = method === 'FIFO' ? lots[0] : lots[lots.length-1];
+          const take = Math.min(lot.q, out);
+          lot.q -= take; out -= take;
+          if (lot.q <= 1e-9) (method === 'FIFO' ? lots.shift() : lots.pop());
+        }
+      }
+    }
+  }
+  if (method === 'WAC'){
+    const rate = wacQ > 0 ? wacV/wacQ : 0;
+    return {qty:wacQ, value:wacV, rate};
+  }
+  const q = lots.reduce((s,l)=>s+l.q,0), v = lots.reduce((s,l)=>s+l.q*l.r,0);
+  return {qty:q, value:v, rate: q>0 ? v/q : 0};
+}
+function totals(){
+  let value = 0, low = [], dead = [];
+  const cutoff = new Date(Date.now() - 30*86400000).toISOString().slice(0,10);
+  for (const it of DB.items){
+    const v = valuation(it.id);
+    value += v.value;
+    if (v.qty <= (it.reorder||0) && (it.reorder||0) > 0) low.push({it, v});
+    const lastIssue = DB.entries.filter(e=>e.itemId===it.id && e.issued>0 && e.status!=='flagged')
+      .map(e=>e.date).sort().pop();
+    if (v.qty > 0 && (!lastIssue || lastIssue < cutoff)) dead.push({it, v, lastIssue});
+  }
+  const recvTot = DB.entries.filter(e=>e.status!=='flagged').reduce((s,e)=>s+e.received,0)
+    + DB.items.reduce((s,i)=>s+i.opening,0);
+  const dmgTot = DB.entries.filter(e=>e.status!=='flagged').reduce((s,e)=>s+e.damaged,0);
+  return {value, low, dead, shrink: recvTot>0 ? dmgTot/recvTot*100 : 0, dmgTot};
+}
+
+// ---------------- entry workspace ----------------
+let editingId = null;
+function refreshItemSelects(){
+  const opts = DB.items.map(i=>`<option value="${i.id}">${i.name} (${i.category||'—'})</option>`).join('');
+  $('eItem').innerHTML = opts || '<option value="">— add items in Item Master first —</option>';
+  $('regItemFilter').innerHTML = '<option value="all">All items</option>' +
+    DB.items.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+}
+function calcPreview(){
+  const id = $('eItem').value, date = $('eDate').value || todayStr();
+  const it = itemById(id);
+  if (!it){ $('calcline').innerHTML=''; return; }
+  const open = position(id, {uptoDate:date, excludeId:editingId});
+  const recv = +$('eRecv').value||0, iss = +$('eIss').value||0, dmg = +$('eDmg').value||0;
+  const close = open + recv - iss - dmg;
+  const over = iss + dmg > open + recv;
+  const lock = isLocked(date);
+  $('calcline').innerHTML =
+    `<span>Opening (auto): <b>${qty(open, it.unit)}</b></span>` +
+    `<span>+ Received: <b>${qty(recv)}</b></span><span>− Issued: <b>${qty(iss)}</b></span>` +
+    `<span>− Damaged: <b>${qty(dmg)}</b></span>` +
+    `<span>Closing (auto): <b style="color:${close<0?'var(--bad)':'var(--good)'}">${qty(close, it.unit)}</b></span>` +
+    (over ? `<span class="err">⛔ cannot issue ${qty(iss+dmg)} — only ${qty(open+recv, it.unit)} available</span>` : '') +
+    (lock ? `<span class="err">🔒 ${monthOf(date)} is locked by the accountant</span>` : '');
+  $('saveBtn').disabled = over || lock || role()==='viewer' || !it;
+}
+function saveEntry(){
+  if ($('saveBtn').disabled) return;
+  const id = $('eItem').value, it = itemById(id);
+  const date = $('eDate').value || todayStr();
+  const recv = +$('eRecv').value||0, iss = +$('eIss').value||0, dmg = +$('eDmg').value||0;
+  const rate = +$('eRate').value||0;
+  if (!it) return toast('Pick an item', true);
+  if (recv<0||iss<0||dmg<0) return toast('Negative quantities are not allowed', true);
+  if (recv===0 && iss===0 && dmg===0) return toast('Enter at least one movement quantity', true);
+  if (isLocked(date)) return toast(monthOf(date)+' is locked', true);
+  const open = position(id, {uptoDate:date, excludeId:editingId});
+  if (iss + dmg > open + recv) return toast('Issue exceeds available stock', true);
+  if (recv > 0 && rate <= 0 && !confirm('No rate entered for this receipt — value it at the last known rate?')) return;
+  if (editingId){
+    const e = DB.entries.find(x=>x.id===editingId);
+    Object.assign(e, {date, itemId:id, batch:$('eBatch').value.trim(), received:recv, issued:iss,
+      damaged:dmg, rate, note:$('eNote').value.trim(), status:'pending', flag:'', by:role(), ts:new Date().toISOString()});
+    audit('edit entry', `${e.id} ${it.name} ${date}`);
+    toast('Entry updated — back to pending review');
+  } else {
+    const e = {id:nid('E'), date, itemId:id, batch:$('eBatch').value.trim(), received:recv, issued:iss,
+      damaged:dmg, rate, note:$('eNote').value.trim(), status:'pending', flag:'', by:role(), ts:new Date().toISOString()};
+    DB.entries.push(e);
+    audit('add entry', `${e.id} ${it.name} ${date} +${recv}/−${iss}/dmg ${dmg}`);
+    toast(`Saved — ${it.name}: closing ${qty(open+recv-iss-dmg, it.unit)}`);
+  }
+  cancelEdit(true);
+  persist(); renderAll();
+  $('eRecv').focus(); $('eRecv').select();
+}
+function editEntry(id){
+  const e = DB.entries.find(x=>x.id===id); if (!e) return;
+  if (isLocked(e.date)) return toast('Month is locked', true);
+  editingId = id;
+  $('eDate').value=e.date; $('eItem').value=e.itemId; $('eBatch').value=e.batch||'';
+  $('eRecv').value=e.received; $('eIss').value=e.issued; $('eDmg').value=e.damaged;
+  $('eRate').value=e.rate||''; $('eNote').value=e.note||'';
+  $('entryTitle').textContent = 'Editing ' + id + (e.flag ? ' — accountant note: '+e.flag : '');
+  $('saveBtn').textContent = '✔ Update';
+  $('cancelEditBtn').style.display='';
+  calcPreview(); window.scrollTo({top:0, behavior:'smooth'});
+}
+function cancelEdit(keepDate){
+  editingId = null;
+  if (!keepDate) $('eDate').value = todayStr();
+  $('eBatch').value=''; $('eRecv').value=0; $('eIss').value=0; $('eDmg').value=0;
+  $('eRate').value=''; $('eNote').value='';
+  $('entryTitle').textContent = 'New Movement Entry';
+  $('saveBtn').textContent = '＋ Save (Ctrl+↵)';
+  $('cancelEditBtn').style.display='none';
+  calcPreview();
+}
+function delEntry(id){
+  const e = DB.entries.find(x=>x.id===id); if (!e) return;
+  if (isLocked(e.date)) return toast('Month is locked', true);
+  if (!confirm('Delete entry '+id+'?')) return;
+  DB.entries = DB.entries.filter(x=>x.id!==id);
+  audit('delete entry', id);
+  persist(); renderAll();
+}
+function renderRegister(){
+  const mFil = $('regMonth').value, iFil = $('regItemFilter').value;
+  let rows = entriesSorted().reverse();
+  if (mFil) rows = rows.filter(e=>monthOf(e.date)===mFil);
+  if (iFil!=='all') rows = rows.filter(e=>e.itemId===iFil);
+  const canEdit = role()!=='viewer';
+  $('regTable').innerHTML =
+    `<thead><tr><th>Date</th><th>Item</th><th>Batch</th><th class="r">Opening</th><th class="r">Received</th>
+     <th class="r">Issued</th><th class="r">Damaged</th><th class="r">Closing</th><th class="r">Rate</th>
+     <th>Status</th><th>By</th><th></th></tr></thead><tbody>` +
+    rows.slice(0,300).map(e=>{
+      const it = itemById(e.itemId) || {name:'?', unit:''};
+      const open = position(e.itemId, {uptoDate:e.date, excludeId:e.id});
+      const close = open + e.received - e.issued - e.damaged;
+      const locked = isLocked(e.date);
+      return `<tr><td>${e.date}${locked?' 🔒':''}</td><td>${it.name}</td><td>${e.batch||'—'}</td>
+        <td class="r">${qty(open)}</td><td class="r">${e.received?qty(e.received):'—'}</td>
+        <td class="r">${e.issued?qty(e.issued):'—'}</td><td class="r">${e.damaged?qty(e.damaged):'—'}</td>
+        <td class="r"><b>${qty(close)}</b></td><td class="r">${e.rate?('₹'+e.rate):'—'}</td>
+        <td><span class="badge ${e.status}">${e.status}</span>${e.flag?` <span title="${e.flag}">💬</span>`:''}</td>
+        <td>${e.by||''}</td>
+        <td>${canEdit&&!locked?`<button class="icobtn" onclick="editEntry('${e.id}')" title="Edit">✏️</button>
+          <button class="icobtn" onclick="delEntry('${e.id}')" title="Delete">🗑</button>`:''}</td></tr>`;
+    }).join('') + (rows.length ? '' : '<tr><td colspan="12" style="color:var(--muted)">No entries yet — use the form above.</td></tr>') +
+    '</tbody>';
+}
+function exportRegister(){
+  const head = ['Date','Item','Batch','Opening','Received','Issued','Damaged','Closing','Rate','Status','By','Remark'];
+  const rows = entriesSorted().map(e=>{
+    const it = itemById(e.itemId)||{name:'?'};
+    const open = position(e.itemId,{uptoDate:e.date, excludeId:e.id});
+    return [e.date, it.name, e.batch, open.toFixed(2), e.received, e.issued, e.damaged,
+      (open+e.received-e.issued-e.damaged).toFixed(2), e.rate, e.status, e.by, e.note];
+  });
+  const esc = v=>{const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const csv = [head,...rows].map(r=>r.map(esc).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download = 'movement_register.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---------------- accounts workspace ----------------
+function renderAccounts(){
+  const m = $('accMonth').value;
+  const locked = !!DB.locks[m];
+  $('monthStatus').innerHTML = m ? `<span class="badge ${locked?'locked':'open'}">${locked?'LOCKED':'OPEN'}</span>` : '';
+  $('lockBtn').textContent = locked ? '🔓 Unlock Month' : '🔒 Lock Month';
+  const isAcc = role()==='accountant';
+  $('lockBtn').disabled = !isAcc || !m;
+  $('approveAllBtn').disabled = !isAcc || locked;
+  let rows = entriesSorted().reverse().filter(e=>!m || monthOf(e.date)===m);
+  $('accTable').innerHTML =
+    `<thead><tr><th>Date</th><th>Item</th><th class="r">Recv</th><th class="r">Issued</th><th class="r">Dmg</th>
+     <th class="r">Rate</th><th class="r">Line Value</th><th>Status</th><th>Note</th><th></th></tr></thead><tbody>` +
+    rows.map(e=>{
+      const it = itemById(e.itemId)||{name:'?'};
+      const lv = (e.received - e.issued - e.damaged) * (e.rate || valuation(e.itemId).rate);
+      return `<tr><td>${e.date}</td><td>${it.name}</td><td class="r">${e.received||'—'}</td>
+        <td class="r">${e.issued||'—'}</td><td class="r">${e.damaged||'—'}</td>
+        <td class="r">${e.rate?'₹'+e.rate:'—'}</td><td class="r">${inr(lv)}</td>
+        <td><span class="badge ${e.status}">${e.status}</span></td>
+        <td style="max-width:160px;font-size:11px;color:var(--muted)">${e.flag||e.note||''}</td>
+        <td>${isAcc && !locked ? `
+          <button class="icobtn" title="Approve" onclick="setStatus('${e.id}','approved')">✅</button>
+          <button class="icobtn" title="Flag discrepancy" onclick="flagEntry('${e.id}')">🚩</button>` : ''}</td></tr>`;
+    }).join('') + (rows.length?'':'<tr><td colspan="10" style="color:var(--muted)">No entries in this month.</td></tr>') +
+    '</tbody>';
+  // valuation table
+  $('valHint').textContent = DB.settings.method + ' method · live';
+  const vrows = DB.items.map(it=>({it, v:valuation(it.id)})).filter(x=>x.v.qty>0 || x.it.opening>0)
+    .sort((a,b)=>b.v.value-a.v.value);
+  const tot = vrows.reduce((s,x)=>s+x.v.value,0);
+  $('valTable').innerHTML =
+    `<thead><tr><th>Item</th><th>Category</th><th class="r">Qty on hand</th><th class="r">${DB.settings.method} rate</th>
+     <th class="r">Value</th><th class="r">Share</th></tr></thead><tbody>`+
+    vrows.map(x=>`<tr><td>${x.it.name}</td><td>${x.it.category||'—'}</td>
+      <td class="r">${qty(x.v.qty, x.it.unit)}</td><td class="r">₹${x.v.rate.toFixed(2)}</td>
+      <td class="r">${inr(x.v.value)}</td><td class="r">${tot?(x.v.value/tot*100).toFixed(1):0}%</td></tr>`).join('')+
+    `<tr style="font-weight:700;background:#222636"><td>TOTAL</td><td></td><td></td><td></td>
+     <td class="r">${inr(tot)}</td><td></td></tr></tbody>`;
+}
+function setStatus(id, st){
+  const e = DB.entries.find(x=>x.id===id); if (!e) return;
+  e.status = st; if (st==='approved') e.flag='';
+  audit(st==='approved'?'approve entry':'status change', id);
+  persist(); renderAll();
+}
+function flagEntry(id){
+  const e = DB.entries.find(x=>x.id===id); if (!e) return;
+  const note = prompt('Describe the discrepancy for the registrar:', e.flag||'');
+  if (note === null) return;
+  e.status = 'flagged'; e.flag = note;
+  audit('flag entry', id+': '+note);
+  persist(); renderAll();
+  toast('Flagged — excluded from stock & valuation until corrected');
+}
+function approveAll(){
+  const m = $('accMonth').value;
+  let n=0;
+  DB.entries.forEach(e=>{ if ((!m||monthOf(e.date)===m) && e.status==='pending'){ e.status='approved'; n++; } });
+  audit('approve all', `${n} entries ${m||''}`);
+  persist(); renderAll(); toast(n+' entries approved');
+}
+function toggleLock(){
+  const m = $('accMonth').value; if (!m) return;
+  if (DB.locks[m]){
+    if (!confirm('Unlock '+m+'? Entries become editable again.')) return;
+    delete DB.locks[m]; audit('unlock month', m);
+  } else {
+    const pend = DB.entries.filter(e=>monthOf(e.date)===m && e.status==='pending').length;
+    if (pend && !confirm(pend+' entries are still pending review. Lock anyway?')) return;
+    DB.locks[m] = {by:role(), ts:new Date().toISOString()}; audit('lock month', m);
+  }
+  persist(); renderAll();
+}
+
+// ---------------- dashboard ----------------
+let charts = {};
+function mkChart(id, cfg){ if (charts[id]) charts[id].destroy(); charts[id]=new Chart($(id), cfg); }
+function renderDash(){
+  const t = totals();
+  const flagged = DB.entries.filter(e=>e.status==='flagged').length;
+  const pend = DB.entries.filter(e=>e.status==='pending').length;
+  $('pendCnt').style.display = pend ? '' : 'none'; $('pendCnt').textContent = pend;
+  $('dashKpis').innerHTML =
+    `<div class="kpi"><div class="lbl">Total Inventory Value</div><div class="val">${inr(t.value)}</div>
+      <div class="chg">${DB.settings.method} · ${DB.items.length} items · live</div></div>
+    <div class="kpi k2"><div class="lbl">Pending Review</div><div class="val">${pend}</div>
+      <div class="chg">${flagged} flagged for correction</div></div>
+    <div class="kpi k3"><div class="lbl">Low Stock Alerts</div><div class="val">${t.low.length}</div>
+      <div class="chg">at or below reorder level</div></div>
+    <div class="kpi k4"><div class="lbl">Dead / Slow-Moving</div><div class="val">${t.dead.length}</div>
+      <div class="chg">no issues in 30 days</div></div>
+    <div class="kpi k5"><div class="lbl">Shrinkage Rate</div><div class="val">${t.shrink.toFixed(2)}%</div>
+      <div class="chg">${qty(t.dmgTot)} damaged of all inflow</div></div>`;
+  // movement chart for current month
+  const m = $('regMonth').value || todayStr().slice(0,7);
+  $('dashMonthLbl').textContent = m;
+  const days = {};
+  DB.entries.filter(e=>monthOf(e.date)===m && e.status!=='flagged').forEach(e=>{
+    if (!days[e.date]) days[e.date] = {r:0,i:0,d:0};
+    days[e.date].r += e.received; days[e.date].i += e.issued; days[e.date].d += e.damaged;
+  });
+  const labels = Object.keys(days).sort();
+  mkChart('moveChart', {type:'bar',
+    data:{labels: labels.map(d=>d.slice(8)),
+      datasets:[
+        {label:'Received', data:labels.map(d=>days[d].r), backgroundColor:'#2bbd74cc', borderRadius:3},
+        {label:'Issued', data:labels.map(d=>days[d].i), backgroundColor:'#3da2eccc', borderRadius:3},
+        {label:'Damaged', data:labels.map(d=>days[d].d), backgroundColor:'#f4647acc', borderRadius:3}]},
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{usePointStyle:true}}},
+      scales:{x:{grid:{display:false},title:{display:true,text:'day of month',color:'#666e8c',font:{size:10}}},
+        y:{grid:{color:'#262a3c'}}}}});
+  // category doughnut
+  const cats = {};
+  DB.items.forEach(it=>{ const v = valuation(it.id); if (v.value>0) cats[it.category||'Uncategorised'] = (cats[it.category||'Uncategorised']||0)+v.value; });
+  const ck = Object.keys(cats);
+  mkChart('catChart', {type:'doughnut',
+    data:{labels:ck, datasets:[{data:ck.map(k=>cats[k]),
+      backgroundColor:['#3da2ec','#f4a261','#2bbd74','#f4647a','#a78bfa','#2dd4bf','#f472b6'],
+      borderColor:'#1c1f2b', borderWidth:2}]},
+    options:{responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{legend:{position:'right',labels:{usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>`${c.label}: ${inr(c.parsed)}`}}}}});
+  // attention list
+  const t2 = totals();
+  const att = [
+    ...t2.low.map(x=>({type:'<span class="badge low">LOW STOCK</span>', name:x.it.name,
+      detail:`${qty(x.v.qty,x.it.unit)} on hand · reorder at ${qty(x.it.reorder,x.it.unit)}`})),
+    ...t2.dead.map(x=>({type:'<span class="badge dead">DEAD STOCK</span>', name:x.it.name,
+      detail:`${qty(x.v.qty,x.it.unit)} (${inr(x.v.value)}) idle — last issue ${x.lastIssue||'never'}`})),
+    ...DB.entries.filter(e=>e.status==='flagged').map(e=>({type:'<span class="badge flagged">FLAGGED</span>',
+      name:(itemById(e.itemId)||{name:'?'}).name, detail:`${e.date} — ${e.flag||'discrepancy'}`}))
+  ];
+  $('attTable').innerHTML =
+    '<thead><tr><th>Type</th><th>Item</th><th>Detail</th></tr></thead><tbody>' +
+    (att.length ? att.map(a=>`<tr><td>${a.type}</td><td>${a.name}</td><td style="color:var(--muted)">${a.detail}</td></tr>`).join('')
+      : '<tr><td colspan="3" style="color:var(--muted)">Nothing needs attention. ✅</td></tr>') + '</tbody>';
+}
+
+// ---------------- item master ----------------
+let editingItem = null;
+function openItemModal(it){
+  editingItem = it || null;
+  $('itemModalTitle').firstChild.textContent = it ? 'Edit Item ' : 'New Item ';
+  $('iName').value = it?it.name:''; $('iCat').value = it?it.category:'';
+  $('iUnit').value = it?it.unit:'kg'; $('iOpen').value = it?it.opening:0;
+  $('iRate').value = it?it.openingRate:0; $('iReorder').value = it?it.reorder:0;
+  $('catList').innerHTML = [...new Set(DB.items.map(i=>i.category).filter(Boolean))].map(c=>`<option value="${c}">`).join('');
+  $('itemModal').classList.add('open'); $('iName').focus();
+}
+function closeItemModal(){ $('itemModal').classList.remove('open'); }
+function saveItem(){
+  const name = $('iName').value.trim();
+  if (!name) return toast('Item name required', true);
+  if (+$('iOpen').value<0 || +$('iRate').value<0 || +$('iReorder').value<0) return toast('No negative values', true);
+  if (editingItem){
+    Object.assign(editingItem, {name, category:$('iCat').value.trim(), unit:$('iUnit').value,
+      opening:+$('iOpen').value||0, openingRate:+$('iRate').value||0, reorder:+$('iReorder').value||0});
+    audit('edit item', name);
+  } else {
+    DB.items.push({id:nid('I'), name, category:$('iCat').value.trim(), unit:$('iUnit').value,
+      opening:+$('iOpen').value||0, openingRate:+$('iRate').value||0, reorder:+$('iReorder').value||0});
+    audit('add item', name);
+  }
+  persist(); closeItemModal(); renderAll();
+}
+function delItem(id){
+  const used = DB.entries.some(e=>e.itemId===id);
+  if (used) return toast('Item has register entries — cannot delete', true);
+  if (!confirm('Delete this item?')) return;
+  const it = itemById(id);
+  DB.items = DB.items.filter(i=>i.id!==id);
+  audit('delete item', it?it.name:id);
+  persist(); renderAll();
+}
+function renderItems(){
+  const q = ($('itemSearch').value||'').toLowerCase();
+  const canEdit = role()!=='viewer';
+  let rows = DB.items.filter(i=>!q || (i.name+' '+(i.category||'')).toLowerCase().includes(q));
+  $('itemTable').innerHTML =
+    `<thead><tr><th>Item</th><th>Category</th><th>Unit</th><th class="r">Opening</th><th class="r">Opening rate</th>
+     <th class="r">On hand</th><th class="r">Value (${DB.settings.method})</th><th class="r">Reorder</th><th>Health</th><th></th></tr></thead><tbody>`+
+    rows.map(it=>{
+      const v = valuation(it.id);
+      const lowFlag = (it.reorder||0)>0 && v.qty<=it.reorder;
+      return `<tr><td>${it.name}</td><td>${it.category||'—'}</td><td>${it.unit}</td>
+        <td class="r">${qty(it.opening)}</td><td class="r">₹${(it.openingRate||0).toFixed(2)}</td>
+        <td class="r"><b>${qty(v.qty)}</b></td><td class="r">${inr(v.value)}</td>
+        <td class="r">${qty(it.reorder||0)}</td>
+        <td>${lowFlag?'<span class="badge low">LOW</span>':'<span class="badge ok">OK</span>'}</td>
+        <td>${canEdit?`<button class="icobtn" onclick='openItemModal(itemById("${it.id}"))'>✏️</button>
+          <button class="icobtn" onclick="delItem('${it.id}')">🗑</button>`:''}</td></tr>`;
+    }).join('') + (rows.length?'':'<tr><td colspan="10" style="color:var(--muted)">No items yet — add one or seed from the stock statement.</td></tr>') +
+    '</tbody>';
+}
+function seedFromStatement(){
+  if (!SEED || !SEED.months || !SEED.months.length) return toast('No statement data embedded', true);
+  if (DB.items.length && !confirm('Add statement items alongside your existing '+DB.items.length+' items?')) return;
+  const m = SEED.months[SEED.months.length-1];
+  let n = 0;
+  const have = new Set(DB.items.map(i=>i.name.toLowerCase()));
+  (m.rawMaterial||[]).forEach(r=>{
+    const name = `${r.product} — ${r.supplier||'yarn'}`;
+    if (r.kg>0 && !have.has(name.toLowerCase())){
+      DB.items.push({id:nid('I'), name, category:'Yarn', unit:'kg', opening:r.kg,
+        openingRate:r.rate||((r.value&&r.kg)?r.value/r.kg:0), reorder:Math.round(r.kg*0.15)});
+      n++;
+    }
+  });
+  (m.chemDetail||[]).forEach(c=>{
+    const name = `${c.product} (${c.dept})`;
+    if (c.kg>0 && !have.has(name.toLowerCase())){
+      DB.items.push({id:nid('I'), name, category:c.dept==='Boiler'?'Fuel':'Chemical', unit:'kg',
+        opening:c.kg, openingRate:c.rate||((c.value&&c.kg)?c.value/c.kg:0), reorder:Math.round(c.kg*0.2)});
+      n++;
+    }
+  });
+  audit('seed items', n + ' items from ' + m.month + ' statement');
+  persist(); renderAll();
+  toast(`Seeded ${n} items with opening stock from the ${m.month} statement`);
+}
+
+// ---------------- audit ----------------
+function renderAudit(){
+  $('auditTable').innerHTML =
+    '<thead><tr><th>When</th><th>User</th><th>Action</th><th>Detail</th></tr></thead><tbody>'+
+    DB.log.slice(0,400).map(l=>`<tr><td style="white-space:nowrap">${l.ts.replace('T',' ').slice(0,19)}</td>
+      <td>${l.user}</td><td>${l.action}</td><td style="color:var(--muted)">${l.detail}</td></tr>`).join('')+
+    (DB.log.length?'':'<tr><td colspan="4" style="color:var(--muted)">No activity yet.</td></tr>')+'</tbody>';
+}
+
+// ---------------- backup / restore ----------------
+function exportBackup(){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(DB,null,1)],{type:'application/json'}));
+  a.download = 'stock_erp_backup_' + todayStr() + '.json'; a.click(); URL.revokeObjectURL(a.href);
+  audit('backup exported',''); persist();
+}
+$('importFile').onchange = e=>{
+  const f = e.target.files[0]; if (!f) return;
+  f.text().then(t=>{
+    const d = JSON.parse(t);
+    if (!d.items || !d.entries) throw new Error('not a valid backup');
+    if (!confirm(`Replace current data with backup (${d.items.length} items, ${d.entries.length} entries)?`)) return;
+    DB = Object.assign(blankDB(), d);
+    audit('backup restored', f.name);
+    persist(); renderAll(); toast('Backup restored');
+  }).catch(err=>toast('Restore failed: '+err.message, true));
+  e.target.value = '';
+};
+
+// ---------------- roles, tabs, init ----------------
+function applyRole(){
+  const r = role();
+  const accTab = document.querySelector('[data-tab=accounts]');
+  accTab.style.display = (r==='accountant'||r==='viewer') ? '' : 'none';
+  $('entrybar').style.display = r==='viewer' ? 'none' : '';
+  $('seedBtn').disabled = r==='viewer';
+  if (r!=='accountant' && r!=='viewer' && document.querySelector('.tab.active').dataset.tab==='accounts') showTab('entry');
+  renderAll();
+}
+function showTab(t){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab===t));
+  ['entry','accounts','dash','items','audit'].forEach(x=>$('tab-'+x).style.display = x===t?'':'none');
+  renderAll();
+}
+function renderAll(){
+  refreshItemSelects();
+  renderRegister(); renderAccounts(); renderDash(); renderItems(); renderAudit();
+  calcPreview();
+}
+// keyboard: Ctrl+Enter saves from anywhere in the entry bar
+$('entrybar').addEventListener('keydown', e=>{
+  if (e.key==='Enter' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); saveEntry(); }
+  else if (e.key==='Enter' && e.target.tagName!=='BUTTON'){
+    e.preventDefault();
+    const f = [...$('entrybar').querySelectorAll('input,select')];
+    const i = f.indexOf(e.target);
+    if (i>=0 && i<f.length-1) f[i+1].focus();
+    else saveEntry();
+  }
+});
+['eDate','eItem','eRecv','eIss','eDmg'].forEach(id=>{ $(id).addEventListener('input', calcPreview); $(id).addEventListener('change', calcPreview); });
+$('roleSel').onchange = applyRole;
+$('methodSel').onchange = ()=>{ DB.settings.method=$('methodSel').value; audit('valuation method', DB.settings.method); persist(); renderAll(); };
+$('regMonth').onchange = renderAll; $('regItemFilter').onchange = renderRegister;
+$('accMonth').onchange = renderAccounts; $('itemSearch').oninput = renderItems;
+$('itemModal').onclick = e=>{ if (e.target.id==='itemModal') closeItemModal(); };
+
+// init defaults
+$('eDate').value = todayStr();
+$('regMonth').value = todayStr().slice(0,7);
+$('accMonth').value = todayStr().slice(0,7);
+$('methodSel').value = DB.settings.method;
+applyRole();
+</script>
+</body>
+</html>

@@ -58,6 +58,31 @@ every month on file automatically.
 Requires Python 3 with `openpyxl` (`pip install openpyxl`) to rebuild.
 The raw xlsx statements are intentionally **not** committed (see `.gitignore`).
 
+## Stock Register ERP (`erp.html`)
+
+A data-entry-first companion module reachable from the dashboard header
+(📝 Stock Register ERP). Three role-gated workspaces:
+
+- **Registrar** — keyboard-first movement entry (received / issued /
+  damaged per item & batch). Opening and closing stock auto-calculate;
+  over-issuing beyond available stock and negative quantities are
+  blocked; entries in accountant-locked months are rejected.
+- **Accountant** — live stock valuation under **FIFO / LIFO / Weighted
+  Average** (lot-based engine), per-entry approve / flag-with-note
+  workflow (flagged entries are excluded from stock until corrected),
+  and month-end **lock** that freezes all entries in the month.
+- **Executive view** — total inventory value, pending review count,
+  low-stock alerts (reorder levels), dead/slow-moving stock (no issues
+  in 30 days), shrinkage rate, daily movement chart and value-by-category
+  doughnut, all updating live as data is entered.
+
+Item master can be seeded in one click from the latest embedded stock
+statement (yarn + chemicals with opening stock and rates). Every action
+is written to an audit trail. Data persists in the browser
+(localStorage) with one-click JSON **Backup / Restore** for moving
+between machines — swap in a shared backend later if multi-user
+concurrency is needed.
+
 ## Hosting on Vercel
 
 The build emits `index.html` (identical to `Stock_Dashboard.html`), so the

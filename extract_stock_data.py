@@ -271,15 +271,19 @@ def parse_chem_detail(ws, dept):
     return items
 
 
-def parse_store_rm(ws):
-    """Raw material yarn detail: product, supplier, kg, rate, value."""
+def parse_store_rm(ws, loc='Store', min_row=8, stop_at_total=False):
+    """Raw material yarn detail: product, supplier, kg, rate, value.
+    Same layout is used by the LOOM sheet's weft-yarn section."""
     items = []
-    for r in ws.iter_rows(min_row=8, max_row=ws.max_row, max_col=6):
+    for r in ws.iter_rows(min_row=min_row, max_row=ws.max_row, max_col=6):
+        if stop_at_total and any(
+                isinstance(c.value, str) and 'total' in c.value.lower() for c in r):
+            break
         product = cell_text(r[1].value)
         supplier = cell_text(r[2].value)
         kg, rate, val = num(r[3].value), num(r[4].value), num(r[5].value)
         if product and (kg > 0 or val > 0) and 'total' not in product.lower():
-            items.append({'product': product, 'supplier': supplier,
+            items.append({'loc': loc, 'product': product, 'supplier': supplier,
                           'kg': kg, 'rate': rate, 'value': val})
     return items
 
@@ -306,6 +310,9 @@ def main():
         data['month'] = label
         data['file'] = fname
         data['rawMaterial'] = parse_store_rm(wb['Store - RM']) if 'Store - RM' in wb.sheetnames else []
+        if 'LOOM' in wb.sheetnames:
+            data['rawMaterial'] += parse_store_rm(
+                wb['LOOM'], loc='Loom (weft)', min_row=5, stop_at_total=True)
         data['products'] = parse_finish_goods(wb['Finish Goods']) if 'Finish Goods' in wb.sheetnames else []
         data['chemDetail'] = []
         for sheet, dept in [('DYEING', 'Dyeing'), ('RO', 'RO'),
