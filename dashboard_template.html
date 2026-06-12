@@ -85,6 +85,11 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
       <select id="monthSel"></select>
       <label>Compare vs</label>
       <select id="prevSel"></select>
+      <label>View</label>
+      <select id="unitSel">
+        <option value="value">Value (₹)</option>
+        <option value="kg">Weight (kg)</option>
+      </select>
     </div>
   </header>
 
@@ -185,16 +190,21 @@ function custMap(m){ const o={}; m.customers.forEach(c=>o[c.name]=c); return o; 
 // ---------- state ----------
 let curIdx = MONTHS.length - 1;
 let prevIdx = Math.max(0, MONTHS.length - 2);
+let unit = 'value';   // 'value' | 'kg'
 const charts = {};
+function fmtU(v){ return unit === 'value' ? inr(v) : kg(v); }
+function fld(row){ return unit === 'value' ? row.value : row.kg; }
 
 function init(){
   const ms = document.getElementById('monthSel'), ps = document.getElementById('prevSel');
+  const us = document.getElementById('unitSel');
   MONTHS.forEach((m,i)=>{
     ms.add(new Option(m.month, i)); ps.add(new Option(m.month, i));
   });
   ms.value = curIdx; ps.value = prevIdx;
   ms.onchange = ()=>{ curIdx = +ms.value; render(); };
   ps.onchange = ()=>{ prevIdx = +ps.value; render(); };
+  us.onchange = ()=>{ unit = us.value; render(); };
   render();
 }
 
@@ -224,6 +234,7 @@ function kpiCard(cls,label,val,sub,subCls){
 function chgTxt(cur, prev, invert){
   if (prev === null || prev === undefined || !prev) return ['vs prior: —','flat'];
   const d = pct(cur, prev);
+  if (Math.abs(d) < 0.05) return ['unchanged vs prior','flat'];
   const good = invert ? d <= 0 : d >= 0;
   return [`${d>=0?'▲':'▼'} ${Math.abs(d).toFixed(1)}% vs prior`, good ? 'up' : 'down'];
 }
@@ -296,9 +307,10 @@ function renderPipeline(m,p){
   let html='';
   STAGES.forEach((s,i)=>{
     const v=stageVal(m,s), k=stageKg(m,s);
-    const pv=p?stageVal(p,s):null;
-    html += `<div class="stage"><div class="nm">${s}</div><div class="v">${inr(v)}</div>
-      <div class="k">${kg(k)}</div><div class="d">${deltaHtml(v,pv)}</div></div>`;
+    const cur = unit==='value' ? v : k;
+    const pv = p ? (unit==='value' ? stageVal(p,s) : stageKg(p,s)) : null;
+    html += `<div class="stage"><div class="nm">${s}</div><div class="v">${fmtU(cur)}</div>
+      <div class="k">${unit==='value'?kg(k):inr(v)}</div><div class="d">${deltaHtml(cur,pv)}</div></div>`;
     if (i<STAGES.length-1) html += '<div class="arrow">➜</div>';
   });
   document.getElementById('pipeline').innerHTML = html;
@@ -315,34 +327,34 @@ function renderCustomers(m,p){
   });
   mkChart('custChart',{
     type:'bar',
-    data:{labels:rows.map(c=>c.name),datasets:[{data:rows.map(c=>c.value),
+    data:{labels:rows.map(c=>c.name),datasets:[{data:rows.map(c=>fld(c)),
       backgroundColor:colors.map(c=>c+'cc'),borderColor:colors,borderWidth:1,borderRadius:4}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},
         tooltip:{callbacks:{label:c=>{
-          const r=rows[c.dataIndex], pv=pm[r.name]?pm[r.name].value:null;
+          const r=rows[c.dataIndex], pv=pm[r.name]?fld(pm[r.name]):null;
           const lines=[`${inr(r.value)} · ${kg(r.kg)}`];
-          if(pv!==null) lines.push(`prior: ${inr(pv)}`);
+          if(pv!==null) lines.push(`prior: ${fmtU(pv)}`);
           return lines;}}}},
-      scales:{x:{ticks:{callback:v=>inr(v)},grid:{color:'#262a3c'}},y:{grid:{display:false},ticks:{font:{size:11}}}}}
+      scales:{x:{ticks:{callback:v=>fmtU(v)},grid:{color:'#262a3c'}},y:{grid:{display:false},ticks:{font:{size:11}}}}}
   });
 }
 function renderWip(m,p){
   const labels = m.wip.map(w=>`${w.dept} · ${w.item}`);
-  const cur = m.wip.map(w=>w.value);
+  const cur = m.wip.map(w=>fld(w));
   const datasets=[{label:m.month,data:cur,backgroundColor:'#4ea8decc',borderRadius:3}];
   if(p){
     const prev = m.wip.map(w=>{
       const x=p.wip.find(q=>q.dept===w.dept&&q.item===w.item);
-      return x?x.value:0;});
+      return x?fld(x):0;});
     datasets.push({label:p.month,data:prev,backgroundColor:'#9aa1b955',borderRadius:3});
   }
   mkChart('wipChart',{type:'bar',
     data:{labels,datasets},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
       plugins:{legend:{position:'top',labels:{usePointStyle:true}},
-        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${inr(c.parsed.x)}`}}},
-      scales:{x:{ticks:{callback:v=>inr(v)},grid:{color:'#262a3c'}},y:{grid:{display:false},ticks:{font:{size:10.5}}}}}
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmtU(c.parsed.x)}`}}},
+      scales:{x:{ticks:{callback:v=>fmtU(v)},grid:{color:'#262a3c'}},y:{grid:{display:false},ticks:{font:{size:10.5}}}}}
   });
 }
 function renderChem(m,p){
