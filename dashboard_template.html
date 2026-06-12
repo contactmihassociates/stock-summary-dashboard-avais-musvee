@@ -69,6 +69,14 @@ tr:hover td{background:#222636}
 .badge.ok{background:#163d2a;color:var(--good)} .badge.stale{background:#3d3416;color:var(--warn)}
 .badge.zero{background:#3d1a1f;color:var(--bad)} .badge.new{background:#16303d;color:var(--accent)}
 .delta-pos{color:var(--good);font-weight:600} .delta-neg{color:var(--bad);font-weight:600} .delta-flat{color:var(--muted)}
+.movers{display:flex;flex-direction:column;gap:6px;max-height:290px;overflow-y:auto}
+.mover{display:grid;grid-template-columns:1fr auto;gap:4px 10px;background:var(--panel2);
+  border:1px solid var(--border);border-radius:7px;padding:8px 12px;align-items:center}
+.mover .nm{font-size:12.5px;font-weight:600}
+.mover .gp{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.mover .dv{font-size:13px;font-weight:700;text-align:right}
+.mover .bar{grid-column:1/3;height:4px;border-radius:2px;background:#2c3145;position:relative;overflow:hidden}
+.mover .bar i{position:absolute;top:0;bottom:0;border-radius:2px}
 .flow{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap}
 .stage{flex:1;min-width:100px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;text-align:center;position:relative}
 .stage .nm{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
@@ -122,9 +130,15 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
     <div class="flow" id="pipeline"></div>
   </div>
 
-  <div class="card" style="margin-bottom:var(--gap)" id="wfCard">
-    <h3>What Moved the Total? — Month-over-Month Bridge <span class="hint" id="wfHint"></span></h3>
-    <div class="chartbox"><canvas id="wfChart"></canvas></div>
+  <div class="grid g2" id="wfRow">
+    <div class="card" id="wfCard">
+      <h3>What Moved the Total? — Month-over-Month Bridge <span class="hint" id="wfHint"></span></h3>
+      <div class="chartbox"><canvas id="wfChart"></canvas></div>
+    </div>
+    <div class="card" id="moversCard">
+      <h3>Top Movers <span class="hint">largest value changes vs comparison month</span></h3>
+      <div id="moversList" class="movers"></div>
+    </div>
   </div>
 
   <div class="grid g2b">
@@ -305,10 +319,38 @@ function mkChart(id, cfg){
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(document.getElementById(id), cfg);
 }
+function renderMovers(m,p){
+  const list = document.getElementById('moversList');
+  const items = [];
+  const pmC = custMap(p);
+  m.customers.forEach(c=>{
+    const pv = pmC[c.name] ? pmC[c.name].value : 0;
+    items.push({nm:c.name, gp:'Finished Goods', d:c.value-pv});
+  });
+  m.wip.forEach(w=>{
+    const x = p.wip.find(q=>q.dept===w.dept&&q.item===w.item);
+    items.push({nm:`${w.dept} · ${w.item}`, gp:'WIP', d:w.value-(x?x.value:0)});
+  });
+  m.chemicals.forEach(c=>{
+    const x = p.chemicals.find(q=>q.dept===c.dept);
+    items.push({nm:c.dept+' chemicals', gp:'Chemicals', d:c.value-(x?x.value:0)});
+  });
+  items.push({nm:'Blanket closing stock', gp:'Finished Goods', d:m.blanketStock.value-p.blanketStock.value});
+  const top = items.filter(x=>Math.abs(x.d)>1000).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,8);
+  const maxd = Math.max(...top.map(x=>Math.abs(x.d)), 1);
+  list.innerHTML = top.length ? top.map(x=>{
+    const up = x.d>=0, w = Math.abs(x.d)/maxd*100;
+    return `<div class="mover"><div><span class="nm">${x.nm}</span> <span class="gp">${x.gp}</span></div>
+      <div class="dv ${up?'delta-pos':'delta-neg'}">${up?'▲':'▼'} ${inr(Math.abs(x.d))}</div>
+      <div class="bar"><i style="width:${w}%;background:${up?'var(--good)':'var(--bad)'};${up?'left:0':'right:0'}"></i></div></div>`;
+  }).join('') : '<div class="alert info"><div class="ico">✅</div><div><b>No significant movement</b><span>No line item changed by more than ₹1,000.</span></div></div>';
+}
 function renderWaterfall(m,p,T,P){
   const card = document.getElementById('wfCard');
-  if (!p){ card.style.display='none'; if(charts.wfChart){charts.wfChart.destroy();delete charts.wfChart;} return; }
-  card.style.display='';
+  const row = document.getElementById('wfRow');
+  if (!p){ row.style.display='none'; if(charts.wfChart){charts.wfChart.destroy();delete charts.wfChart;} return; }
+  row.style.display='';
+  renderMovers(m,p);
   const parts = [
     {name:'Raw Material', d:T.yarn - P.yarn},
     {name:'Chemicals',    d:T.chem - P.chem},
