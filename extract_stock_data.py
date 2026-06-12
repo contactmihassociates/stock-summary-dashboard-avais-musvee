@@ -155,6 +155,38 @@ def parse_summary(ws):
     return out
 
 
+def clean_section(name):
+    """'ELIS STOCK ' -> 'ELIS', 'PRAGUE STOCK ON 28/02/2025' -> 'PRAGUE'."""
+    s = str(name).upper()
+    if s.startswith('NON MOVING'):
+        return 'NON MOVING'
+    s = re.sub(r'\bSTOCKS?\b', '', s)
+    s = re.sub(r'\bON\b[\s\d/.\-]*$', '', s)
+    s = re.sub(r'\s+', ' ', s).strip(' -')
+    return s
+
+
+def parse_finish_goods(ws):
+    """Customer-wise product detail: PRODUCT NAME | COLOUR | SIZE | PCS | KGS."""
+    items = []
+    section = ''
+    for r in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=10):
+        a = r[0].value
+        if a is not None and not isinstance(a, (int, float)):
+            t = str(a).strip()
+            if t and t != 'S NO':
+                section = clean_section(t)
+            continue
+        product = cell_text(r[3].value)
+        if product and product != 'PRODUCT NAME' and section:
+            pcs, kgs = num(r[8].value), num(r[9].value)
+            if pcs > 0 or kgs > 0:
+                items.append({'customer': section, 'product': product,
+                              'colour': cell_text(r[4].value), 'size': cell_text(r[5].value),
+                              'pcs': pcs, 'kg': kgs})
+    return items
+
+
 def parse_store_rm(ws):
     """Raw material yarn detail: product, supplier, kg, rate, value."""
     items = []
@@ -190,6 +222,7 @@ def main():
         data['month'] = label
         data['file'] = fname
         data['rawMaterial'] = parse_store_rm(wb['Store - RM']) if 'Store - RM' in wb.sheetnames else []
+        data['products'] = parse_finish_goods(wb['Finish Goods']) if 'Finish Goods' in wb.sheetnames else []
         months.append(data)
 
     months.sort(key=lambda d: month_key(d['month']))

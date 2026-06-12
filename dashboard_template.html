@@ -60,6 +60,8 @@ header .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .tools{display:flex;gap:8px;align-items:center}
 .tools input{background:var(--panel2);color:var(--text);border:1px solid var(--border);
   border-radius:6px;padding:5px 10px;font-size:12px;width:160px}
+.tools select{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;max-width:170px}
 .tools input::placeholder{color:var(--muted)}
 .tools .btn{padding:5px 10px;font-size:11.5px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
@@ -246,6 +248,20 @@ footer a:hover{text-decoration:underline}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
+    <h3>Finished Goods — Product Explorer
+      <span class="tools">
+        <select id="fgCust"></select>
+        <input type="search" id="fgSearch" placeholder="Search product / colour / size…">
+        <button class="btn" onclick="exportFg()">⬇ CSV</button>
+      </span>
+    </h3>
+    <div class="grid g2b" style="margin-bottom:0">
+      <div class="chartbox tall"><canvas id="fgChart"></canvas></div>
+      <div class="tablewrap" style="max-height:340px"><table id="fgTable"></table></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
     <h3>Customer Stock Register
       <span class="tools">
         <input type="search" id="custSearch" placeholder="Search customer…">
@@ -391,6 +407,14 @@ function init(){
     rmFilter = e.target.value.trim().toLowerCase();
     renderRmTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
   };
+  document.getElementById('fgCust').onchange = e=>{
+    fgCustVal = e.target.value;
+    renderProducts(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
+  document.getElementById('fgSearch').oninput = e=>{
+    fgSearchVal = e.target.value.trim().toLowerCase();
+    renderProducts(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
   render();
 }
 
@@ -411,6 +435,7 @@ function render(){
   renderAlerts(m,p,T,P);
   renderWip(m,p);
   renderChem(m,p);
+  renderProducts(m,p);
   renderCustTable(m,p);
   renderRmTable(m,p);
 }
@@ -736,6 +761,69 @@ function renderAlerts(m,p,T,P){
     `<div class="alert ${a.lv==='crit'?'crit':a.lv==='info'?'info':''}"><div class="ico">${a.ico}</div><div><b>${a.t}</b><span>${a.s}</span></div></div>`).join('');
 }
 
+// ---------- product explorer ----------
+let fgSort={col:'kg',dir:-1}, fgCustVal='all', fgSearchVal='';
+function fgKey(r){ return [r.customer,r.product,r.colour,r.size].join('|'); }
+function fgRows(m,p){
+  const pm = {};
+  if (p) (p.products||[]).forEach(r=>pm[fgKey(r)]=r);
+  let rows = (m.products||[]).map(r=>({...r, pkg: p ? (pm[fgKey(r)]?pm[fgKey(r)].kg:0) : null}));
+  if (fgCustVal!=='all') rows = rows.filter(r=>r.customer===fgCustVal);
+  if (fgSearchVal){
+    const q = fgSearchVal;
+    rows = rows.filter(r=>(r.product+' '+r.colour+' '+r.size+' '+r.customer).toLowerCase().includes(q));
+  }
+  return rows;
+}
+function renderProducts(m,p){
+  // customer dropdown (preserve selection)
+  const sel = document.getElementById('fgCust');
+  const custs = [...new Set((m.products||[]).map(r=>r.customer))].sort();
+  const keep = custs.includes(fgCustVal) ? fgCustVal : 'all';
+  sel.innerHTML = '<option value="all">All customers</option>' +
+    custs.map(c=>`<option${c===keep?' selected':''}>${c}</option>`).join('');
+  fgCustVal = keep;
+  const rows = fgRows(m,p);
+  // chart: top products by kg (aggregated by product name)
+  const agg = {};
+  rows.forEach(r=>{
+    if (!agg[r.product]) agg[r.product] = {kg:0,pcs:0};
+    agg[r.product].kg += r.kg; agg[r.product].pcs += r.pcs;
+  });
+  const top = Object.entries(agg).sort((a,b)=>b[1].kg-a[1].kg).slice(0,12);
+  mkChart('fgChart',{type:'bar',
+    data:{labels:top.map(t=>t[0]),datasets:[{data:top.map(t=>t[1].kg),
+      backgroundColor:'#3da2eccc',borderColor:'#3da2ec',borderWidth:1,borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},title:{display:true,text:'Top products by weight'+(fgCustVal!=='all'?' — '+fgCustVal:''),color:'#98a0bb',font:{size:11}},
+        tooltip:{callbacks:{label:c=>{
+          const t=top[c.dataIndex][1];
+          return `${kg(t.kg)} · ${Math.round(t.pcs).toLocaleString('en-IN')} pcs`;}}}},
+      scales:{x:{ticks:{callback:v=>kg(v)},grid:{color:'#262a3c'}},y:{grid:{display:false},ticks:{font:{size:10.5}}}}}
+  });
+  // table
+  const sorted=[...rows].sort((a,b)=>{const k=fgSort.col;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*fgSort.dir;});
+  const totKg=rows.reduce((s,r)=>s+r.kg,0), totPcs=rows.reduce((s,r)=>s+r.pcs,0);
+  document.getElementById('fgTable').innerHTML =
+    `<thead><tr><th data-c="customer">Customer</th><th data-c="product">Product</th><th data-c="colour">Colour</th>
+     <th data-c="size">Size</th><th class="r" data-c="pcs">Pcs</th><th class="r" data-c="kg">Kg</th><th class="r">MoM Δ</th></tr></thead><tbody>`+
+    sorted.slice(0,250).map(r=>`<tr><td>${r.customer}</td><td>${r.product}</td><td>${r.colour}</td><td>${r.size}</td>
+      <td class="r">${Math.round(r.pcs).toLocaleString('en-IN')}</td><td class="r">${r.kg.toFixed(1)}</td>
+      <td class="r">${deltaHtml(r.kg,r.pkg)}</td></tr>`).join('')+
+    `<tr style="font-weight:700;background:#222636"><td>TOTAL (${rows.length} items${rows.length>250?', top 250 shown':''})</td><td></td><td></td><td></td>
+      <td class="r">${Math.round(totPcs).toLocaleString('en-IN')}</td><td class="r">${totKg.toFixed(1)}</td><td></td></tr></tbody>`;
+  document.querySelectorAll('#fgTable th[data-c]').forEach(th=>th.onclick=()=>{
+    const c=th.dataset.c; fgSort = fgSort.col===c?{col:c,dir:-fgSort.dir}:{col:c,dir:-1};
+    renderProducts(m,p);});
+}
+function exportFg(){
+  const m = MONTHS[curIdx], p = (prevIdx!==curIdx)?MONTHS[prevIdx]:null;
+  downloadCSV(`products_${m.month}${fgCustVal!=='all'?'_'+fgCustVal.replace(/\W+/g,'_'):''}.csv`,
+    ['Customer','Product','Colour','Size','Pcs','Kg', p?`Prior Kg (${p.month})`:'Prior Kg'],
+    fgRows(m,p).map(r=>[r.customer,r.product,r.colour,r.size,r.pcs,r.kg.toFixed(2),
+      r.pkg===null?'':r.pkg.toFixed(2)]));
+}
+
 // ---------- tables ----------
 let custSort={col:'value',dir:-1}, rmSort={col:'value',dir:-1};
 let custFilter='', rmFilter='';
@@ -927,6 +1015,34 @@ function parseStoreRmSheet(ws){
   }
   return items;
 }
+function cleanSection(name){
+  let s = String(name).toUpperCase();
+  if (s.startsWith('NON MOVING')) return 'NON MOVING';
+  s = s.replace(/\bSTOCKS?\b/g,'');
+  s = s.replace(/\bON\b[\s\d/.\-]*$/,'');
+  return s.replace(/\s+/g,' ').replace(/^[\s-]+|[\s-]+$/g,'');
+}
+function parseFinishGoodsSheet(ws){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+  const items = [];
+  let section = '';
+  for (const r of rows){
+    while (r.length < 10) r.push(null);
+    const a = r[0];
+    if (a !== null && typeof a !== 'number'){
+      const t = String(a).trim();
+      if (t && t !== 'S NO') section = cleanSection(t);
+      continue;
+    }
+    const product = xtext(r[3]);
+    if (product && product !== 'PRODUCT NAME' && section){
+      const pcs = xnum(r[8]), kgs = xnum(r[9]);
+      if (pcs > 0 || kgs > 0)
+        items.push({customer:section, product, colour:xtext(r[4]), size:xtext(r[5]), pcs, kg:kgs});
+    }
+  }
+  return items;
+}
 function parseStatementFile(file){
   return file.arrayBuffer().then(buf=>{
     const wb = XLSX.read(buf, {type:'array'});
@@ -938,6 +1054,7 @@ function parseStatementFile(file){
     data.month = label;
     data.file = file.name;
     data.rawMaterial = wb.SheetNames.includes('Store - RM') ? parseStoreRmSheet(wb.Sheets['Store - RM']) : [];
+    data.products = wb.SheetNames.includes('Finish Goods') ? parseFinishGoodsSheet(wb.Sheets['Finish Goods']) : [];
     return data;
   });
 }
