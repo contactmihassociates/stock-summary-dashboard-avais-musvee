@@ -256,6 +256,7 @@ footer a{color:var(--brand-light);text-decoration:none}
         <span style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn primary" onclick="openItemModal()">＋ New Item</button>
           <button class="btn" onclick="openStockTake()">📋 Stock Take</button>
+          <button class="btn" onclick="exportItems()">⬇ CSV</button>
           <button class="btn" id="seedBtn" onclick="seedFromStatement()">⚡ Seed from stock statement</button>
           <input type="search" id="itemSearch" placeholder="Search…">
         </span></h3>
@@ -975,6 +976,20 @@ function exportLedger(){
   a.download = 'ledger_' + it.name.replace(/\W+/g,'_') + '.csv'; a.click(); URL.revokeObjectURL(a.href);
 }
 $('ledgerModal').onclick = e=>{ if (e.target.id==='ledgerModal') $('ledgerModal').classList.remove('open'); };
+
+function exportItems(){
+  const esc = v=>{const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const rows = DB.items.map(it=>{
+    const v = valuation(it.id);
+    return [it.name, it.category, it.unit, it.opening, it.openingRate, v.qty.toFixed(2),
+      v.rate.toFixed(2), v.value.toFixed(2), it.reorder];
+  });
+  const csv = [['Item','Category','Unit','Opening','Opening rate','On hand','Rate ('+DB.settings.method+')','Value','Reorder level'],
+    ...rows].map(r=>r.map(esc).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download = 'item_master_' + todayStr() + '.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
 
 // ---------------- stock take ----------------
 function openStockTake(){

@@ -76,11 +76,17 @@ A data-entry-first companion module reachable from the dashboard header
   in 30 days), shrinkage rate, daily movement chart and value-by-category
   doughnut, all updating live as data is entered.
 
-Item master can be seeded in one click from the latest embedded stock
-statement (yarn + chemicals with opening stock and rates). Every action
-is written to an audit trail. Data persists in the browser
-(localStorage) with one-click JSON **Backup / Restore** for moving
-between machines — swap in a shared backend later if multi-user
+The item master **auto-seeds on first load** with ~169 items (store
+yarn, loom weft, dyed-yarn lots, chemicals, fuel) from the latest
+embedded statement, complete with opening stock, rates and suggested
+reorder levels. Also included: searchable type-ahead item picker,
+per-item ledger with running balance, printable **month-end stock
+report in the mill's R/MNT/10 paper format**, physical **stock-take
+mode** (variances auto-post as pending adjustments), top-consumption
+ranking, bulk approval with status filters, an accountant PIN guard,
+CSV exports throughout, a full audit trail, and JSON Backup/Restore
+(with a 7-day backup reminder). Data persists in the browser
+(localStorage) — swap in a shared backend later if multi-user
 concurrency is needed.
 
 ## Hosting on Vercel
