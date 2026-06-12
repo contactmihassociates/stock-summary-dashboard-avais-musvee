@@ -25,6 +25,14 @@ header .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .controls label{font-size:12px;color:var(--muted)}
 .controls select{background:var(--panel2);color:var(--text);border:1px solid var(--border);
   border-radius:6px;padding:7px 12px;font-size:13px;cursor:pointer}
+.btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;
+  padding:7px 12px;font-size:12.5px;cursor:pointer}
+.btn:hover{background:#2a2f44;border-color:var(--accent)}
+.tools{display:flex;gap:8px;align-items:center}
+.tools input{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:5px 10px;font-size:12px;width:160px}
+.tools input::placeholder{color:var(--muted)}
+.tools .btn{padding:5px 10px;font-size:11.5px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
 .kpi{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:15px 18px;position:relative;overflow:hidden}
 .kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
@@ -70,7 +78,9 @@ tr:hover td{background:#222636}
 .arrow{display:flex;align-items:center;color:var(--muted);font-size:16px}
 footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
 @media(max-width:1000px){.g2,.g2b,.g3{grid-template-columns:1fr}.chartbox{height:260px}}
-@media print{body{background:#fff;color:#000}.card,.kpi{border:1px solid #ccc;background:#fff}}
+@media print{body{background:#fff;color:#000}.card,.kpi{border:1px solid #ccc;background:#fff;break-inside:avoid}
+  .controls,.tools .btn,.tools input{display:none}.tablewrap{max-height:none;overflow:visible}
+  .kpi .val,.card h3,td,th{color:#000}.kpi .lbl,.alert span{color:#444}.alert{background:#f6f6f6}}
 </style>
 </head>
 <body>
@@ -90,6 +100,7 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
         <option value="value">Value (₹)</option>
         <option value="kg">Weight (kg)</option>
       </select>
+      <button class="btn" onclick="window.print()" title="Print or save as PDF">🖨 Print / PDF</button>
     </div>
   </header>
 
@@ -134,12 +145,24 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
-    <h3>Customer Stock Register <span class="hint">click headers to sort</span></h3>
+    <h3>Customer Stock Register
+      <span class="tools">
+        <input type="search" id="custSearch" placeholder="Search customer…">
+        <button class="btn" onclick="exportCust()">⬇ CSV</button>
+        <span class="hint">click headers to sort</span>
+      </span>
+    </h3>
     <div class="tablewrap"><table id="custTable"></table></div>
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
-    <h3>Raw Material (Yarn) Holdings — Store RM <span class="hint">items with stock on hand</span></h3>
+    <h3>Raw Material (Yarn) Holdings — Store RM
+      <span class="tools">
+        <input type="search" id="rmSearch" placeholder="Search yarn / supplier…">
+        <button class="btn" onclick="exportRm()">⬇ CSV</button>
+        <span class="hint">items with stock on hand</span>
+      </span>
+    </h3>
     <div class="tablewrap"><table id="rmTable"></table></div>
   </div>
 
@@ -205,6 +228,14 @@ function init(){
   ms.onchange = ()=>{ curIdx = +ms.value; render(); };
   ps.onchange = ()=>{ prevIdx = +ps.value; render(); };
   us.onchange = ()=>{ unit = us.value; render(); };
+  document.getElementById('custSearch').oninput = e=>{
+    custFilter = e.target.value.trim().toLowerCase();
+    renderCustTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
+  document.getElementById('rmSearch').oninput = e=>{
+    rmFilter = e.target.value.trim().toLowerCase();
+    renderRmTable(MONTHS[curIdx], prevIdx!==curIdx?MONTHS[prevIdx]:null);
+  };
   render();
 }
 
@@ -416,6 +447,35 @@ function renderAlerts(m,p,T,P){
 
 // ---------- tables ----------
 let custSort={col:'value',dir:-1}, rmSort={col:'value',dir:-1};
+let custFilter='', rmFilter='';
+
+function downloadCSV(filename, header, rows){
+  const esc = v => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  };
+  const csv = [header, ...rows].map(r => r.map(esc).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'}));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function exportCust(){
+  const m = MONTHS[curIdx], p = (prevIdx!==curIdx)?MONTHS[prevIdx]:null;
+  const pm = p?custMap(p):{};
+  downloadCSV(`customer_stock_${m.month}.csv`,
+    ['Customer','Weight (kg)','Value (Rs)','Rate per kg', p?`Prior value (${p.month})`:'Prior value'],
+    m.customers.map(c=>[c.name, c.kg.toFixed(2), c.value.toFixed(2),
+      c.kg>0?(c.value/c.kg).toFixed(2):'', pm[c.name]?pm[c.name].value.toFixed(2):'']));
+}
+function exportRm(){
+  const m = MONTHS[curIdx];
+  downloadCSV(`raw_material_${m.month}.csv`,
+    ['Yarn count','Supplier','Stock (kg)','Rate per kg','Value (Rs)'],
+    m.rawMaterial.map(r=>[r.product, r.supplier, r.kg.toFixed(2), r.rate.toFixed(2), r.value.toFixed(2)]));
+}
+
 function renderCustTable(m,p){
   const pm=p?custMap(p):{};
   let rows=m.customers.map(c=>{
@@ -427,6 +487,7 @@ function renderCustTable(m,p){
     else if(p&&!pv&&c.value>0) status='new';
     return {...c,pv,rate,status};
   });
+  if (custFilter) rows = rows.filter(c=>c.name.toLowerCase().includes(custFilter));
   rows.sort((a,b)=>{const k=custSort.col;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*custSort.dir;});
   const badge={ok:'<span class="badge ok">moving</span>',stale:'<span class="badge stale">no movement</span>',
     zero:'<span class="badge zero">zero</span>',new:'<span class="badge new">new</span>'};
@@ -446,6 +507,8 @@ function renderCustTable(m,p){
 }
 function renderRmTable(m,p){
   let rows=[...m.rawMaterial];
+  if (rmFilter) rows = rows.filter(r=>
+    r.product.toLowerCase().includes(rmFilter) || r.supplier.toLowerCase().includes(rmFilter));
   rows.sort((a,b)=>{const k=rmSort.col;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*rmSort.dir;});
   const tot=rows.reduce((s,r)=>s+r.value,0), totKg=rows.reduce((s,r)=>s+r.kg,0);
   document.getElementById('rmTable').innerHTML =
