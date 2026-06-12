@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monthly Stock Summary Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
+<style>
+:root{
+  --bg:#12141c; --panel:#1c1f2b; --panel2:#232737; --border:#2c3145;
+  --text:#e8eaf2; --muted:#9aa1b9; --accent:#4ea8de; --accent2:#f4a261;
+  --good:#2ecc71; --bad:#e85d6a; --warn:#f1c40f;
+  --c1:#4ea8de; --c2:#f4a261; --c3:#2ecc71; --c4:#e85d6a; --c5:#a78bfa; --c6:#34d3c8; --c7:#f472b6;
+  --radius:10px; --gap:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',-apple-system,Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.45;font-size:14px}
+.wrap{max-width:1480px;margin:0 auto;padding:var(--gap)}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;
+  background:linear-gradient(135deg,#1b2436,#141826);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px 22px;margin-bottom:var(--gap)}
+header h1{font-size:19px;font-weight:600;letter-spacing:.3px}
+header .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.controls label{font-size:12px;color:var(--muted)}
+.controls select{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:7px 12px;font-size:13px;cursor:pointer}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
+.kpi{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:15px 18px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+.kpi.k2::before{background:var(--c2)} .kpi.k3::before{background:var(--c3)}
+.kpi.k4::before{background:var(--c5)} .kpi.k5::before{background:var(--c6)} .kpi.k6::before{background:var(--c4)}
+.kpi .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+.kpi .val{font-size:23px;font-weight:700;margin:4px 0 2px}
+.kpi .chg{font-size:12px;font-weight:600}
+.chg.up{color:var(--good)} .chg.down{color:var(--bad)} .chg.flat{color:var(--muted)}
+.grid{display:grid;gap:var(--gap);margin-bottom:var(--gap)}
+.g2{grid-template-columns:1.4fr 1fr} .g2b{grid-template-columns:1fr 1fr} .g3{grid-template-columns:1fr 1fr 1fr}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.card h3{font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.card h3 .hint{font-size:11px;color:var(--muted);font-weight:400}
+.chartbox{position:relative;height:280px}
+.chartbox.tall{height:340px}
+/* alerts */
+.alerts{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto}
+.alert{display:flex;gap:10px;align-items:flex-start;background:var(--panel2);border:1px solid var(--border);
+  border-left:3px solid var(--warn);border-radius:7px;padding:9px 12px;font-size:12.5px}
+.alert.crit{border-left-color:var(--bad)} .alert.info{border-left-color:var(--accent)}
+.alert .ico{font-size:15px;line-height:1.2}
+.alert b{display:block;font-size:12.5px}
+.alert span{color:var(--muted);font-size:11.5px}
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{position:sticky;top:0;text-align:left;padding:8px 10px;background:var(--panel2);color:var(--muted);
+  font-size:11px;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none;white-space:nowrap}
+th.r,td.r{text-align:right}
+td{padding:7px 10px;border-bottom:1px solid #262a3c}
+tr:hover td{background:#222636}
+.tablewrap{max-height:380px;overflow:auto;border-radius:7px;border:1px solid var(--border)}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600}
+.badge.ok{background:#163d2a;color:var(--good)} .badge.stale{background:#3d3416;color:var(--warn)}
+.badge.zero{background:#3d1a1f;color:var(--bad)} .badge.new{background:#16303d;color:var(--accent)}
+.delta-pos{color:var(--good);font-weight:600} .delta-neg{color:var(--bad);font-weight:600} .delta-flat{color:var(--muted)}
+.flow{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap}
+.stage{flex:1;min-width:100px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;text-align:center;position:relative}
+.stage .nm{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.stage .v{font-size:16px;font-weight:700;margin-top:3px}
+.stage .k{font-size:11px;color:var(--muted)}
+.stage .d{font-size:11px;font-weight:600;margin-top:2px}
+.arrow{display:flex;align-items:center;color:var(--muted);font-size:16px}
+footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
+@media(max-width:1000px){.g2,.g2b,.g3{grid-template-columns:1fr}.chartbox{height:260px}}
+@media print{body{background:#fff;color:#000}.card,.kpi{border:1px solid #ccc;background:#fff}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>📦 Monthly Stock Summary — Closing Stock Dashboard</h1>
+      <div class="sub" id="subTitle"></div>
+    </div>
+    <div class="controls">
+      <label>Month</label>
+      <select id="monthSel"></select>
+      <label>Compare vs</label>
+      <select id="prevSel"></select>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpiRow"></section>
+
+  <div class="grid g2">
+    <div class="card">
+      <h3>Total Stock Value Trend <span class="hint">all months on file</span></h3>
+      <div class="chartbox"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Stock Composition <span class="hint" id="compHint"></span></h3>
+      <div class="chartbox"><canvas id="compChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <h3>Production Pipeline — WIP Value by Stage <span class="hint">vs comparison month</span></h3>
+    <div class="flow" id="pipeline"></div>
+  </div>
+
+  <div class="grid g2b">
+    <div class="card">
+      <h3>Finished Goods by Customer <span class="hint">value, colored by MoM movement</span></h3>
+      <div class="chartbox tall"><canvas id="custChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>⚠ Action Center — Automated Alerts <span class="hint" id="alertCount"></span></h3>
+      <div class="alerts" id="alertList"></div>
+    </div>
+  </div>
+
+  <div class="grid g2b">
+    <div class="card">
+      <h3>WIP Detail by Department &amp; Item</h3>
+      <div class="chartbox"><canvas id="wipChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Chemical Stock by Department</h3>
+      <div class="chartbox"><canvas id="chemChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <h3>Customer Stock Register <span class="hint">click headers to sort</span></h3>
+    <div class="tablewrap"><table id="custTable"></table></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <h3>Raw Material (Yarn) Holdings — Store RM <span class="hint">items with stock on hand</span></h3>
+    <div class="tablewrap"><table id="rmTable"></table></div>
+  </div>
+
+  <footer>Generated from monthly stock statement files · Re-run <b>build_dashboard.py</b> after adding a new month's xlsx · All values in ₹ (Cr = Crore, L = Lakh)</footer>
+</div>
+
+<script>
+const DATA = {"months": [{"asOnDate": "30.04.26", "grandTotal": 143946523.56227946, "yarnStore": {"kg": 179776.0, "value": 43751678.0}, "chemicals": [{"dept": "Boiler", "kg": 81.4, "value": 13956.6}, {"dept": "RO", "kg": 35326.3, "value": 399506.75}, {"dept": "Sizing", "kg": 1805.0, "value": 125100.0}, {"dept": "Dyeing", "kg": 27987.857999999997, "value": 3402414.170220002}], "fuelValue": 2440140.0, "wip": [{"dept": "Sizing", "item": "Rewinding yarn", "kg": 6464.0, "value": 1707019.0}, {"dept": "Sizing", "item": "Beam WIP", "kg": 21992.0, "value": 5197304.5}, {"dept": "Loom", "item": "Weft Yarn", "kg": 4385.0, "value": 815695.4}, {"dept": "Loom", "item": "Floor Beam", "kg": 6169.111716071789, "value": 1742369.130441045}, {"dept": "Loom", "item": "Projective Loom", "kg": 4363.330123337901, "value": 857877.4108917612}, {"dept": "Loom", "item": "NP Loom", "kg": 4778.244101633393, "value": 1430789.4196698642}, {"dept": "Loom", "item": "GS Loom", "kg": 5787.508642295394, "value": 1711003.5541439804}, {"dept": "Loom", "item": "JQ Loom", "kg": 4790.951876818482, "value": 1429456.6300809495}, {"dept": "Grey", "item": "WIP", "kg": 16651.077, "value": 4216403.062811875}, {"dept": "Dyeing", "item": "Dyeing - Yarn", "kg": 3518.0900000000006, "value": 1060621.035}, {"dept": "Stitching", "item": "WIP - LINE", "kg": 8395.347000000002, "value": 3005461.3649999998}, {"dept": "Blanket", "item": "WIP", "kg": 7082.224, "value": 1389056.8648}], "blanketStock": {"kg": 26856.808, "value": 5742456.5386}, "customers": [{"name": "ITC PACKED", "kg": 3266.92, "value": 1165979.2900000003}, {"name": "BTB", "kg": 18832.475000000002, "value": 6297754.955}, {"name": "VISION", "kg": 0.0, "value": 0.0}, {"name": "ELIS", "kg": 131673.72000000003, "value": 45582011.181719996}, {"name": "LEMONTREE", "kg": 0.0, "value": 0.0}, {"name": "FABLINE", "kg": 0.0, "value": 0.0}, {"name": "PRAGUE", "kg": 648.229, "value": 232554.26619999998}, {"name": "CELCIUS", "kg": 6939.1100000000015, "value": 2495045.6779999994}, {"name": "Rely Resources", "kg": 0.0, "value": 0.0}, {"name": "SILVER ARCADE", "kg": 8858.0345, "value": 3172979.7201000005}, {"name": "MCC", "kg": 40.75, "value": 14661.849999999999}, {"name": "Lanson", "kg": 105.0, "value": 37778.99999999999}, {"name": "LEELA", "kg": 394.0640000000001, "value": 140810.52799999996}, {"name": "Dubai Furniture", "kg": 0.0, "value": 0.0}, {"name": "TGL France", "kg": 37.19800000000001, "value": 13383.840399999997}, {"name": "ASSOTEX", "kg": 31.560000000000002, "value": 11355.287999999999}, {"name": "AVASA / MARI Gold", "kg": 547.1999999999999, "value": 197867.52}, {"name": "SRIVARI", "kg": 13.61, "value": 4896.877999999999}], "numbal": {"kg": 18803.64, "value": 6581274.0}, "month": "APR-26", "file": "APR-26 Stock statement.xlsx", "rawMaterial": [{"product": "7's", "supplier": "SHANMUGAVEL / BE One", "kg": 13490.0, "rate": 167.3, "value": 2256877.0}, {"product": "2/4's", "supplier": "Prabhu", "kg": 1320.0, "rate": 179.0, "value": 236280.0}, {"product": "12's OE", "supplier": "Jyothiremaye", "kg": 4297.0, "rate": 210.0, "value": 902370.0}, {"product": "12's", "supplier": "Jyothiremaye", "kg": 5534.0, "rate": 261.0, "value": 1444374.0}, {"product": "12's - COMBED", "supplier": "KIKANI", "kg": 1134.0, "rate": 235.0, "value": 266490.0}, {"product": "10's OE", "supplier": "Jyothiremaye", "kg": 8934.0, "rate": 173.0, "value": 1545582.0}, {"product": "14's PC", "supplier": "Southern Spinner", "kg": 1272.0, "rate": 165.0, "value": 209880.0}, {"product": "20.5  PC", "supplier": "Kannapiran", "kg": 300.0, "rate": 186.0, "value": 55800.0}, {"product": "20.5  PC", "supplier": "Southern Spinner", "kg": 864.0, "rate": 186.0, "value": 160704.0}, {"product": "10's PC (9.5)", "supplier": "Southern Spinner", "kg": 2245.0, "rate": 150.0, "value": 336750.0}, {"product": "10's PC", "supplier": "Jyothiremaye", "kg": 635.0, "rate": 205.0, "value": 130175.0}, {"product": "16's", "supplier": "Jyothiremaye", "kg": 21547.0, "rate": 262.0, "value": 5645314.0}, {"product": "16's Combed", "supplier": "Veejay Lakshmi", "kg": 17184.0, "rate": 246.0, "value": 4227264.0}, {"product": "2/12's", "supplier": "Jyothiremaye", "kg": 8031.0, "rate": 265.0, "value": 2128215.0}, {"product": "2/16's", "supplier": "Veejay Lakshmi", "kg": 472.0, "rate": 266.0, "value": 125552.0}, {"product": "2/20 PC Combed", "supplier": "Southern Spinner", "kg": 16475.0, "rate": 260.0, "value": 4283500.0}, {"product": "2/20's", "supplier": "Jyothiremaye", "kg": 1678.0, "rate": 283.0, "value": 474874.0}, {"product": "2/20's", "supplier": "Veejay Lakshmi", "kg": 12201.0, "rate": 283.0, "value": 3452883.0}, {"product": "2/20's Combed", "supplier": "Kikani", "kg": 13815.0, "rate": 259.0, "value": 3578085.0}, {"product": "2/20's Combed", "supplier": "Veejay Lakshmi", "kg": 11294.0, "rate": 260.0, "value": 2936440.0}, {"product": "2/26's Combed", "supplier": "Veejay Lakshmi", "kg": 589.0, "rate": 276.0, "value": 162564.0}, {"product": "2/24'S", "supplier": "Veejay Lakshmi", "kg": 20888.0, "rate": 249.0, "value": 5201112.0}, {"product": "2/24'S", "supplier": "Kikani", "kg": 12130.0, "rate": 255.0, "value": 3093150.0}, {"product": "2/24'S", "supplier": "Jyothiremaye", "kg": 1769.0, "rate": 255.0, "value": 451095.0}, {"product": "2/30's", "supplier": "Veejay Lakshmi", "kg": 1678.0, "rate": 266.0, "value": 446348.0}]}, {"asOnDate": "30.05.26", "grandTotal": 151017789.41986597, "yarnStore": {"kg": 179776.0, "value": 43751678.0}, "chemicals": [{"dept": "Boiler", "kg": 40.800000000000004, "value": 7286.0}, {"dept": "RO", "kg": 26044.0, "value": 467690.5}, {"dept": "Sizing", "kg": 1240.0, "value": 94772.0}, {"dept": "Dyeing", "kg": 27889.867000000002, "value": 3399193.998840002}], "fuelValue": 2763440.0, "wip": [{"dept": "Sizing", "item": "Rewinding yarn", "kg": 5600.0, "value": 1488694.0}, {"dept": "Sizing", "item": "Beam WIP", "kg": 16640.0, "value": 4076390.0}, {"dept": "Loom", "item": "Weft Yarn", "kg": 3693.0, "value": 772090.4}, {"dept": "Loom", "item": "Floor Beam", "kg": 6383.446043269092, "value": 1891230.46841241}, {"dept": "Loom", "item": "Projective Loom", "kg": 4307.169401335851, "value": 845678.5782189461}, {"dept": "Loom", "item": "NP Loom", "kg": 6991.517046927663, "value": 2022039.6303258142}, {"dept": "Loom", "item": "GS Loom", "kg": 5239.042649727768, "value": 1567251.7414225214}, {"dept": "Loom", "item": "JQ Loom", "kg": 5382.324345346125, "value": 1603244.7714112867}, {"dept": "Grey", "item": "WIP", "kg": 5949.336, "value": 1506497.0591449998}, {"dept": "Dyeing", "item": "Dyeing - Yarn", "kg": 5275.07, "value": 1605425.435}, {"dept": "Stitching", "item": "WIP - LINE", "kg": 6521.53, "value": 1193204.4560999998}, {"dept": "Blanket", "item": "WIP", "kg": 3207.574, "value": 621207.7748}], "blanketStock": {"kg": 25436.008, "value": 5562298.4986000005}, "customers": [{"name": "ITC PACKED", "kg": 3760.7649999999994, "value": 1342548.787}, {"name": "BTB", "kg": 20509.124999999996, "value": 6890837.159999999}, {"name": "VISION", "kg": 0.0, "value": 0.0}, {"name": "ELIS", "kg": 169141.38, "value": 58006790.44718999}, {"name": "LEMONTREE", "kg": 0.0, "value": 0.0}, {"name": "FABLINE", "kg": 0.0, "value": 0.0}, {"name": "PRAGUE", "kg": 648.229, "value": 232554.26619999998}, {"name": "CELCIUS", "kg": 5397.530000000001, "value": 1941029.954}, {"name": "Rely Resources", "kg": 0.0, "value": 0.0}, {"name": "SILVER ARCADE", "kg": 8766.832, "value": 3151983.2805999992}, {"name": "MCC", "kg": 20.25, "value": 7285.949999999998}, {"name": "Lanson", "kg": 186.6, "value": 67138.68}, {"name": "LEELA", "kg": 223.4, "value": 79554.995}, {"name": "Dubai Furniture", "kg": 0.0, "value": 0.0}, {"name": "TGL France", "kg": 37.19800000000001, "value": 13383.840399999997}, {"name": "ASSOTEX", "kg": 15.780000000000001, "value": 5677.643999999999}, {"name": "AVASA / MARI Gold", "kg": 600.0, "value": 216960.0}, {"name": "SRIVARI", "kg": 13.61, "value": 4896.877999999999}], "numbal": {"kg": 18803.64, "value": 6581274.0}, "month": "MAY-26", "file": "MAY-26 Stock statement.xlsx", "rawMaterial": [{"product": "7's", "supplier": "SHANMUGAVEL / BE One", "kg": 13490.0, "rate": 167.3, "value": 2256877.0}, {"product": "2/4's", "supplier": "Prabhu", "kg": 1320.0, "rate": 179.0, "value": 236280.0}, {"product": "12's OE", "supplier": "Jyothiremaye", "kg": 4297.0, "rate": 210.0, "value": 902370.0}, {"product": "12's", "supplier": "Jyothiremaye", "kg": 5534.0, "rate": 261.0, "value": 1444374.0}, {"product": "12's - COMBED", "supplier": "KIKANI", "kg": 1134.0, "rate": 235.0, "value": 266490.0}, {"product": "10's OE", "supplier": "Jyothiremaye", "kg": 8934.0, "rate": 173.0, "value": 1545582.0}, {"product": "14's PC", "supplier": "Southern Spinner", "kg": 1272.0, "rate": 165.0, "value": 209880.0}, {"product": "20.5  PC", "supplier": "Kannapiran", "kg": 300.0, "rate": 186.0, "value": 55800.0}, {"product": "20.5  PC", "supplier": "Southern Spinner", "kg": 864.0, "rate": 186.0, "value": 160704.0}, {"product": "10's PC (9.5)", "supplier": "Southern Spinner", "kg": 2245.0, "rate": 150.0, "value": 336750.0}, {"product": "10's PC", "supplier": "Jyothiremaye", "kg": 635.0, "rate": 205.0, "value": 130175.0}, {"product": "16's", "supplier": "Jyothiremaye", "kg": 21547.0, "rate": 262.0, "value": 5645314.0}, {"product": "16's Combed", "supplier": "Veejay Lakshmi", "kg": 17184.0, "rate": 246.0, "value": 4227264.0}, {"product": "2/12's", "supplier": "Jyothiremaye", "kg": 8031.0, "rate": 265.0, "value": 2128215.0}, {"product": "2/16's", "supplier": "Veejay Lakshmi", "kg": 472.0, "rate": 266.0, "value": 125552.0}, {"product": "2/20 PC Combed", "supplier": "Southern Spinner", "kg": 16475.0, "rate": 260.0, "value": 4283500.0}, {"product": "2/20's", "supplier": "Jyothiremaye", "kg": 1678.0, "rate": 283.0, "value": 474874.0}, {"product": "2/20's", "supplier": "Veejay Lakshmi", "kg": 12201.0, "rate": 283.0, "value": 3452883.0}, {"product": "2/20's Combed", "supplier": "Kikani", "kg": 13815.0, "rate": 259.0, "value": 3578085.0}, {"product": "2/20's Combed", "supplier": "Veejay Lakshmi", "kg": 11294.0, "rate": 260.0, "value": 2936440.0}, {"product": "2/26's Combed", "supplier": "Veejay Lakshmi", "kg": 589.0, "rate": 276.0, "value": 162564.0}, {"product": "2/24'S", "supplier": "Veejay Lakshmi", "kg": 20888.0, "rate": 249.0, "value": 5201112.0}, {"product": "2/24'S", "supplier": "Kikani", "kg": 12130.0, "rate": 255.0, "value": 3093150.0}, {"product": "2/24'S", "supplier": "Jyothiremaye", "kg": 1769.0, "rate": 255.0, "value": 451095.0}, {"product": "2/30's", "supplier": "Veejay Lakshmi", "kg": 1678.0, "rate": 266.0, "value": 446348.0}]}]};
+const MONTHS = DATA.months;
+const PALETTE = ['#4ea8de','#f4a261','#2ecc71','#e85d6a','#a78bfa','#34d3c8','#f472b6','#facc15','#fb923c','#60a5fa'];
+Chart.defaults.color = '#9aa1b9';
+Chart.defaults.borderColor = '#2c3145';
+Chart.defaults.font.family = "'Segoe UI',sans-serif";
+
+// ---------- formatting (Indian units) ----------
+function inr(v){
+  const a = Math.abs(v);
+  if (a >= 1e7) return '₹' + (v/1e7).toFixed(2) + ' Cr';
+  if (a >= 1e5) return '₹' + (v/1e5).toFixed(2) + ' L';
+  return '₹' + Math.round(v).toLocaleString('en-IN');
+}
+function kg(v){ return Math.round(v).toLocaleString('en-IN') + ' kg'; }
+function pct(cur, prev){
+  if (!prev) return null;
+  return (cur - prev) / prev * 100;
+}
+function deltaHtml(cur, prev){
+  if (prev === null || prev === undefined) return '<span class="delta-flat">—</span>';
+  const d = cur - prev;
+  if (Math.abs(d) < 1) return '<span class="delta-flat">0%</span>';
+  if (!prev) return '<span class="delta-pos">new</span>';
+  const p = d/prev*100;
+  const cls = p >= 0 ? 'delta-pos' : 'delta-neg';
+  return `<span class="${cls}">${p>=0?'▲':'▼'} ${Math.abs(p).toFixed(1)}%</span>`;
+}
+
+// ---------- derived helpers ----------
+function totals(m){
+  const chem = m.chemicals.reduce((s,c)=>s+c.value,0);
+  const wip  = m.wip.reduce((s,w)=>s+w.value,0) + m.blanketStock.value*0; // blanket stock counted in FG group below
+  const fgCust = m.customers.reduce((s,c)=>s+c.value,0);
+  const fg = fgCust + m.blanketStock.value;
+  return { yarn:m.yarnStore.value, chem, wip, fg, fgCust, numbal:m.numbal.value, grand:m.grandTotal,
+           wipKg: m.wip.reduce((s,w)=>s+w.kg,0), fgKg: m.customers.reduce((s,c)=>s+c.kg,0)+m.blanketStock.kg };
+}
+function custMap(m){ const o={}; m.customers.forEach(c=>o[c.name]=c); return o; }
+
+// ---------- state ----------
+let curIdx = MONTHS.length - 1;
+let prevIdx = Math.max(0, MONTHS.length - 2);
+const charts = {};
+
+function init(){
+  const ms = document.getElementById('monthSel'), ps = document.getElementById('prevSel');
+  MONTHS.forEach((m,i)=>{
+    ms.add(new Option(m.month, i)); ps.add(new Option(m.month, i));
+  });
+  ms.value = curIdx; ps.value = prevIdx;
+  ms.onchange = ()=>{ curIdx = +ms.value; render(); };
+  ps.onchange = ()=>{ prevIdx = +ps.value; render(); };
+  render();
+}
+
+function render(){
+  const m = MONTHS[curIdx];
+  const p = (prevIdx !== curIdx) ? MONTHS[prevIdx] : null;
+  const T = totals(m), P = p ? totals(p) : null;
+  document.getElementById('subTitle').textContent =
+    `Closing stock as on ${m.asOnDate || m.month}` + (p ? ` · compared with ${p.month}` : '');
+
+  renderKPIs(m,p,T,P);
+  renderTrend();
+  renderComposition(T);
+  renderPipeline(m,p);
+  renderCustomers(m,p);
+  renderAlerts(m,p,T,P);
+  renderWip(m,p);
+  renderChem(m,p);
+  renderCustTable(m,p);
+  renderRmTable(m,p);
+}
+
+// ---------- KPIs ----------
+function kpiCard(cls,label,val,sub,subCls){
+  return `<div class="kpi ${cls}"><div class="lbl">${label}</div><div class="val">${val}</div><div class="chg ${subCls||'flat'}">${sub||''}</div></div>`;
+}
+function chgTxt(cur, prev, invert){
+  if (prev === null || prev === undefined || !prev) return ['vs prior: —','flat'];
+  const d = pct(cur, prev);
+  const good = invert ? d <= 0 : d >= 0;
+  return [`${d>=0?'▲':'▼'} ${Math.abs(d).toFixed(1)}% vs prior`, good ? 'up' : 'down'];
+}
+function renderKPIs(m,p,T,P){
+  const fgShare = T.fgCust ? Math.max(...m.customers.map(c=>c.value))/T.fgCust*100 : 0;
+  const topCust = m.customers.reduce((a,b)=>a.value>b.value?a:b, {name:'-',value:0});
+  // stale value: lines unchanged vs prior
+  let stale = 0;
+  if (p){
+    if (Math.abs(m.yarnStore.value - p.yarnStore.value) < 1 && m.yarnStore.value>0) stale += m.yarnStore.value;
+    if (Math.abs(m.numbal.value - p.numbal.value) < 1 && m.numbal.value>0) stale += m.numbal.value;
+    const pm = custMap(p);
+    m.customers.forEach(c=>{ if(c.value>0 && pm[c.name] && Math.abs(c.value-pm[c.name].value)<1) stale += c.value; });
+  }
+  const wipShare = T.grand ? T.wip/T.grand*100 : 0;
+  const [t1,c1]=chgTxt(T.grand, P&&P.grand);
+  const [t2,c2]=chgTxt(T.fg, P&&P.fg);
+  const [t3,c3]=chgTxt(T.wip, P&&P.wip, true);
+  const [t4,c4]=chgTxt(T.yarn, P&&P.yarn, true);
+  document.getElementById('kpiRow').innerHTML =
+    kpiCard('','Total Stock Value', inr(T.grand), t1, c1) +
+    kpiCard('k2','Finished Goods', inr(T.fg), t2, c2) +
+    kpiCard('k3','Work in Progress', inr(T.wip), `${t3} · ${wipShare.toFixed(1)}% of stock`, c3) +
+    kpiCard('k4','Raw Material (Yarn)', inr(T.yarn), t4, c4) +
+    kpiCard('k5','FG Concentration', fgShare.toFixed(1)+'%', `${topCust.name} holds ${inr(topCust.value)}`, fgShare>50?'down':'up') +
+    kpiCard('k6','No-Movement Stock', p ? inr(stale) : '—', p?'value unchanged vs prior month':'select a comparison month', stale>0?'down':'up');
+}
+
+// ---------- charts ----------
+function mkChart(id, cfg){
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), cfg);
+}
+function renderTrend(){
+  const labels = MONTHS.map(m=>m.month);
+  const grand = MONTHS.map(m=>totals(m).grand);
+  const fg = MONTHS.map(m=>totals(m).fg);
+  const wip = MONTHS.map(m=>totals(m).wip);
+  mkChart('trendChart',{
+    type:'bar',
+    data:{labels,datasets:[
+      {type:'line',label:'Total Stock',data:grand,borderColor:'#4ea8de',backgroundColor:'#4ea8de33',borderWidth:2.5,tension:.3,pointRadius:5,yAxisID:'y'},
+      {label:'Finished Goods',data:fg,backgroundColor:'#f4a261cc',borderRadius:4,barPercentage:.55},
+      {label:'WIP',data:wip,backgroundColor:'#2ecc71aa',borderRadius:4,barPercentage:.55},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${inr(c.parsed.y)}`}}},
+      scales:{y:{ticks:{callback:v=>inr(v)},grid:{color:'#262a3c'}},x:{grid:{display:false}}}}
+  });
+}
+function renderComposition(T){
+  document.getElementById('compHint').textContent = 'grand total ' + inr(T.grand);
+  mkChart('compChart',{
+    type:'doughnut',
+    data:{labels:['Finished Goods','Raw Material (Yarn)','WIP','Numbal Stock','Chemicals'],
+      datasets:[{data:[T.fg,T.yarn,T.wip,T.numbal,T.chem],
+        backgroundColor:['#f4a261','#4ea8de','#2ecc71','#a78bfa','#34d3c8'],borderColor:'#1c1f2b',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{position:'right',labels:{usePointStyle:true,padding:14}},
+        tooltip:{callbacks:{label:c=>{
+          const tot=c.dataset.data.reduce((a,b)=>a+b,0);
+          return `${c.label}: ${inr(c.parsed)} (${(c.parsed/tot*100).toFixed(1)}%)`;}}}}}
+  });
+}
+const STAGES = ['Sizing','Loom','Grey','Dyeing','Stitching','Blanket'];
+function stageVal(m,s){ return m.wip.filter(w=>w.dept===s).reduce((a,w)=>a+w.value,0); }
+function stageKg(m,s){ return m.wip.filter(w=>w.dept===s).reduce((a,w)=>a+w.kg,0); }
+function renderPipeline(m,p){
+  let html='';
+  STAGES.forEach((s,i)=>{
+    const v=stageVal(m,s), k=stageKg(m,s);
+    const pv=p?stageVal(p,s):null;
+    html += `<div class="stage"><div class="nm">${s}</div><div class="v">${inr(v)}</div>
+      <div class="k">${kg(k)}</div><div class="d">${deltaHtml(v,pv)}</div></div>`;
+    if (i<STAGES.length-1) html += '<div class="arrow">➜</div>';
+  });
+  document.getElementById('pipeline').innerHTML = html;
+}
+function renderCustomers(m,p){
+  const pm = p?custMap(p):{};
+  const rows = m.customers.filter(c=>c.value>0 || (pm[c.name]&&pm[c.name].value>0))
+    .sort((a,b)=>b.value-a.value);
+  const colors = rows.map(c=>{
+    if(!p) return '#4ea8de';
+    const pv = pm[c.name]?pm[c.name].value:0;
+    if (Math.abs(c.value-pv)<1) return '#f1c40f';      // unchanged
+    return c.value>pv ? '#2ecc71' : '#e85d6a';
+  });
+  mkChart('custChart',{
+    type:'bar',
+    data:{labels:rows.map(c=>c.name),datasets:[{data:rows.map(c=>c.value),
+      backgroundColor:colors.map(c=>c+'cc'),borderColor:colors,borderWidth:1,borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>{
+          const r=rows[c.dataIndex], pv=pm[r.name]?pm[r.name].value:null;
+          const lines=[`${inr(r.value)} · ${kg(r.kg)}`];
+          if(pv!==null) lines.push(`prior: ${inr(pv)}`);
+          return lines;}}}},
+      scales:{x:{ticks:{callback:v=>inr(v)},grid:{color:'#262a3c'}},y:{grid:{display:false},ticks:{font:{size:11}}}}}
+  });
+}
+function renderWip(m,p){
+  const labels = m.wip.map(w=>`${w.dept} · ${w.item}`);
+  const cur = m.wip.map(w=>w.value);
+  const datasets=[{label:m.month,data:cur,backgroundColor:'#4ea8decc',borderRadius:3}];
+  if(p){
+    const prev = m.wip.map(w=>{
+      const x=p.wip.find(q=>q.dept===w.dept&&q.item===w.item);
+      return x?x.value:0;});
+    datasets.push({label:p.month,data:prev,backgroundColor:'#9aa1b955',borderRadius:3});
+  }
+  mkChart('wipChart',{type:'bar',
+    data:{labels,datasets},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${inr(c.parsed.x)}`}}},
+      scales:{x:{ticks:{callback:v=>inr(v)},grid:{color:'#262a3c'}},y:{grid:{display:false},ticks:{font:{size:10.5}}}}}
+  });
+}
+function renderChem(m,p){
+  const labels = m.chemicals.map(c=>c.dept);
+  const datasets=[{label:m.month,data:m.chemicals.map(c=>c.value),backgroundColor:'#34d3c8cc',borderRadius:4}];
+  if(p) datasets.push({label:p.month,data:labels.map(l=>{
+    const x=p.chemicals.find(c=>c.dept===l); return x?x.value:0;}),backgroundColor:'#9aa1b955',borderRadius:4});
+  mkChart('chemChart',{type:'bar',
+    data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{usePointStyle:true}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${inr(c.parsed.y)}`}}},
+      scales:{y:{ticks:{callback:v=>inr(v)},grid:{color:'#262a3c'}},x:{grid:{display:false}}}}
+  });
+}
+
+// ---------- alerts ----------
+function renderAlerts(m,p,T,P){
+  const A=[];
+  const fgShare = T.fgCust ? Math.max(...m.customers.map(c=>c.value))/T.fgCust*100 : 0;
+  const topCust = m.customers.reduce((a,b)=>a.value>b.value?a:b,{name:'-',value:0});
+  if (fgShare>50) A.push({lv:'crit',ico:'🎯',t:'Customer concentration risk',
+    s:`${topCust.name} holds ${fgShare.toFixed(1)}% of customer FG value (${inr(topCust.value)}). A dispatch delay or order change by this customer blocks most of your FG capital.`});
+  if (p){
+    const pm=custMap(p);
+    if (Math.abs(m.yarnStore.value-p.yarnStore.value)<1 && m.yarnStore.value>0)
+      A.push({lv:'crit',ico:'🧶',t:'Raw-material yarn stock unchanged',
+        s:`Store-RM value is identical to ${p.month} (${inr(m.yarnStore.value)}). Either the sheet was not updated or ${kg(m.yarnStore.kg)} of yarn has not moved all month — verify physically.`});
+    if (Math.abs(m.numbal.value-p.numbal.value)<1 && m.numbal.value>0)
+      A.push({lv:'warn',ico:'🏭',t:'Numbal stock static',
+        s:`Numbal stock unchanged at ${inr(m.numbal.value)} (${kg(m.numbal.kg)}). Ageing location stock — consider liquidation plan.`});
+    m.customers.forEach(c=>{
+      const pv=pm[c.name]?pm[c.name].value:null;
+      if (c.value>50000 && pv!==null && Math.abs(c.value-pv)<1)
+        A.push({lv:'warn',ico:'📦',t:`${c.name}: no movement`,
+          s:`Stock parked at ${inr(c.value)} (${kg(c.kg)}) with zero change vs ${p.month}. Chase dispatch / invoicing.`});
+      if (pv && c.value>100000){
+        const d=pct(c.value,pv);
+        if (d>40) A.push({lv:'info',ico:'📈',t:`${c.name}: stock build-up +${d.toFixed(0)}%`,
+          s:`${inr(pv)} → ${inr(c.value)}. Confirm a dispatch schedule exists before producing more.`});
+        if (d<-40) A.push({lv:'info',ico:'📉',t:`${c.name}: stock drawn down ${d.toFixed(0)}%`,
+          s:`${inr(pv)} → ${inr(c.value)}. Good liquidation — check reorder/production plan.`});
+      }
+    });
+    const wd=pct(T.wip,P.wip);
+    if (wd!==null && wd<-15) A.push({lv:'info',ico:'⚙️',t:`WIP reduced ${Math.abs(wd).toFixed(0)}%`,
+      s:`Pipeline value down from ${inr(P.wip)} to ${inr(T.wip)} — capital released from the floor.`});
+    if (wd!==null && wd>15) A.push({lv:'warn',ico:'⚙️',t:`WIP swelling +${wd.toFixed(0)}%`,
+      s:`Pipeline value up from ${inr(P.wip)} to ${inr(T.wip)} — check for bottleneck stages in the pipeline strip above.`});
+  }
+  const zeros = m.customers.filter(c=>c.value===0).map(c=>c.name);
+  if (zeros.length) A.push({lv:'info',ico:'∅',t:`${zeros.length} customers with zero stock`,
+    s:zeros.join(', ')});
+  if (!A.length) A.push({lv:'info',ico:'✅',t:'No alerts',s:'All monitored conditions are within thresholds.'});
+  document.getElementById('alertCount').textContent = `${A.filter(a=>a.lv!=='info').length} need attention`;
+  document.getElementById('alertList').innerHTML = A.map(a=>
+    `<div class="alert ${a.lv==='crit'?'crit':a.lv==='info'?'info':''}"><div class="ico">${a.ico}</div><div><b>${a.t}</b><span>${a.s}</span></div></div>`).join('');
+}
+
+// ---------- tables ----------
+let custSort={col:'value',dir:-1}, rmSort={col:'value',dir:-1};
+function renderCustTable(m,p){
+  const pm=p?custMap(p):{};
+  let rows=m.customers.map(c=>{
+    const pv=pm[c.name]?pm[c.name].value:null;
+    const rate=c.kg>0?c.value/c.kg:0;
+    let status='ok';
+    if(c.value===0) status='zero';
+    else if(p&&pv!==null&&Math.abs(c.value-pv)<1) status='stale';
+    else if(p&&!pv&&c.value>0) status='new';
+    return {...c,pv,rate,status};
+  });
+  rows.sort((a,b)=>{const k=custSort.col;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*custSort.dir;});
+  const badge={ok:'<span class="badge ok">moving</span>',stale:'<span class="badge stale">no movement</span>',
+    zero:'<span class="badge zero">zero</span>',new:'<span class="badge new">new</span>'};
+  const tot=m.customers.reduce((s,c)=>s+c.value,0), totKg=m.customers.reduce((s,c)=>s+c.kg,0);
+  document.getElementById('custTable').innerHTML =
+    `<thead><tr><th data-c="name">Customer</th><th class="r" data-c="kg">Weight</th><th class="r" data-c="value">Value</th>
+     <th class="r" data-c="rate">Rate/kg</th><th class="r">Share</th><th class="r">MoM Δ</th><th>Status</th></tr></thead><tbody>`+
+    rows.map(c=>`<tr><td>${c.name}</td><td class="r">${kg(c.kg)}</td><td class="r">${inr(c.value)}</td>
+      <td class="r">${c.rate?('₹'+c.rate.toFixed(0)):'—'}</td>
+      <td class="r">${tot?(c.value/tot*100).toFixed(1):'0'}%</td>
+      <td class="r">${deltaHtml(c.value,c.pv)}</td><td>${badge[c.status]}</td></tr>`).join('')+
+    `<tr style="font-weight:700;background:#222636"><td>TOTAL</td><td class="r">${kg(totKg)}</td>
+      <td class="r">${inr(tot)}</td><td colspan="4"></td></tr></tbody>`;
+  document.querySelectorAll('#custTable th[data-c]').forEach(th=>th.onclick=()=>{
+    const c=th.dataset.c; custSort = custSort.col===c?{col:c,dir:-custSort.dir}:{col:c,dir:-1};
+    renderCustTable(m,p);});
+}
+function renderRmTable(m,p){
+  let rows=[...m.rawMaterial];
+  rows.sort((a,b)=>{const k=rmSort.col;return (a[k]>b[k]?1:a[k]<b[k]?-1:0)*rmSort.dir;});
+  const tot=rows.reduce((s,r)=>s+r.value,0), totKg=rows.reduce((s,r)=>s+r.kg,0);
+  document.getElementById('rmTable').innerHTML =
+    `<thead><tr><th data-c="product">Yarn Count</th><th data-c="supplier">Supplier</th>
+     <th class="r" data-c="kg">Stock</th><th class="r" data-c="rate">Rate/kg</th><th class="r" data-c="value">Value</th><th class="r">Share</th></tr></thead><tbody>`+
+    rows.map(r=>`<tr><td>${r.product}</td><td>${r.supplier}</td><td class="r">${kg(r.kg)}</td>
+      <td class="r">₹${r.rate.toFixed(2)}</td><td class="r">${inr(r.value)}</td>
+      <td class="r">${tot?(r.value/tot*100).toFixed(1):'0'}%</td></tr>`).join('')+
+    `<tr style="font-weight:700;background:#222636"><td>TOTAL</td><td></td><td class="r">${kg(totKg)}</td>
+      <td></td><td class="r">${inr(tot)}</td><td></td></tr></tbody>`;
+  document.querySelectorAll('#rmTable th[data-c]').forEach(th=>th.onclick=()=>{
+    const c=th.dataset.c; rmSort = rmSort.col===c?{col:c,dir:-rmSort.dir}:{col:c,dir:-1};
+    renderRmTable(m,p);});
+}
+
+init();
+</script>
+</body>
+</html>

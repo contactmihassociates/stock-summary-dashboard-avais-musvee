@@ -1,0 +1,5 @@
+# Raw monthly statements stay local (business data)
+*.xlsx
+~$*
+.claude/
+__pycache__/
