@@ -236,13 +236,17 @@ footer a{color:var(--brand-light);text-decoration:none}
   <section id="tab-dash" style="display:none">
     <div class="kpis" id="dashKpis"></div>
     <div class="grid2">
-      <div class="card"><h3>Daily Movement — <span id="dashMonthLbl"></span></h3>
+      <div class="card"><h3>Daily Movement <input type="month" id="dashMonth"></h3>
         <div class="chartbox"><canvas id="moveChart"></canvas></div></div>
       <div class="card"><h3>Inventory Value by Category</h3>
         <div class="chartbox"><canvas id="catChart"></canvas></div></div>
     </div>
-    <div class="card"><h3>Attention List <span class="hint">low stock · dead stock · flagged entries</span></h3>
-      <div class="tablewrap" style="max-height:300px"><table id="attTable"></table></div></div>
+    <div class="grid2">
+      <div class="card"><h3>Top Consumption <span class="hint" id="topConsHint"></span></h3>
+        <div class="tablewrap" style="max-height:300px"><table id="consTable"></table></div></div>
+      <div class="card"><h3>Attention List <span class="hint">low stock · dead stock · flagged entries</span></h3>
+        <div class="tablewrap" style="max-height:300px"><table id="attTable"></table></div></div>
+    </div>
   </section>
 
   <!-- ============ ITEMS ============ -->
@@ -393,13 +397,18 @@ function valuation(itemId){
 function totals(){
   let value = 0, low = [], dead = [];
   const cutoff = new Date(Date.now() - 30*86400000).toISOString().slice(0,10);
+  // dead-stock detection needs history: only meaningful once entries span 30+ days
+  const firstEntry = DB.entries.length ? entriesSorted()[0].date : null;
+  const historyReady = firstEntry && firstEntry < cutoff;
   for (const it of DB.items){
     const v = valuation(it.id);
     value += v.value;
     if (v.qty <= (it.reorder||0) && (it.reorder||0) > 0) low.push({it, v});
-    const lastIssue = DB.entries.filter(e=>e.itemId===it.id && e.issued>0 && e.status!=='flagged')
-      .map(e=>e.date).sort().pop();
-    if (v.qty > 0 && (!lastIssue || lastIssue < cutoff)) dead.push({it, v, lastIssue});
+    if (historyReady){
+      const lastIssue = DB.entries.filter(e=>e.itemId===it.id && e.issued>0 && e.status!=='flagged')
+        .map(e=>e.date).sort().pop();
+      if (v.qty > 0 && (!lastIssue || lastIssue < cutoff)) dead.push({it, v, lastIssue});
+    }
   }
   const recvTot = DB.entries.filter(e=>e.status!=='flagged').reduce((s,e)=>s+e.received,0)
     + DB.items.reduce((s,i)=>s+i.opening,0);
@@ -677,12 +686,11 @@ function renderDash(){
     <div class="kpi k3"><div class="lbl">Low Stock Alerts</div><div class="val">${t.low.length}</div>
       <div class="chg">at or below reorder level</div></div>
     <div class="kpi k4"><div class="lbl">Dead / Slow-Moving</div><div class="val">${t.dead.length}</div>
-      <div class="chg">no issues in 30 days</div></div>
+      <div class="chg">${DB.entries.length && entriesSorted()[0].date < new Date(Date.now()-30*86400000).toISOString().slice(0,10) ? 'no issues in 30 days' : 'needs 30 days of history'}</div></div>
     <div class="kpi k5"><div class="lbl">Shrinkage Rate</div><div class="val">${t.shrink.toFixed(2)}%</div>
       <div class="chg">${qty(t.dmgTot)} damaged of all inflow</div></div>`;
-  // movement chart for current month
-  const m = $('regMonth').value || todayStr().slice(0,7);
-  $('dashMonthLbl').textContent = m;
+  // movement chart for selected month
+  const m = $('dashMonth').value || todayStr().slice(0,7);
   const days = {};
   DB.entries.filter(e=>monthOf(e.date)===m && e.status!=='flagged').forEach(e=>{
     if (!days[e.date]) days[e.date] = {r:0,i:0,d:0};
@@ -710,6 +718,21 @@ function renderDash(){
     options:{responsive:true, maintainAspectRatio:false, cutout:'62%',
       plugins:{legend:{position:'right',labels:{usePointStyle:true}},
         tooltip:{callbacks:{label:c=>`${c.label}: ${inr(c.parsed)}`}}}}});
+  // top consumption (issued + damaged valued at method rate) for selected month
+  const cons = {};
+  DB.entries.filter(e=>monthOf(e.date)===m && e.status!=='flagged' && (e.issued>0||e.damaged>0))
+    .forEach(e=>{ cons[e.itemId] = (cons[e.itemId]||0) + e.issued + e.damaged; });
+  const consRows = Object.entries(cons).map(([id,q])=>{
+    const it = itemById(id)||{name:'?',unit:''};
+    const rate = valuation(id).rate || (it.openingRate||0);
+    return {it, q, val: q*rate};
+  }).sort((a,b)=>b.val-a.val).slice(0,12);
+  $('topConsHint').textContent = m;
+  $('consTable').innerHTML =
+    '<thead><tr><th>Item</th><th class="r">Consumed</th><th class="r">Value</th></tr></thead><tbody>'+
+    (consRows.length ? consRows.map(x=>`<tr><td><span class="lnk" onclick="openLedger('${x.it.id}')">${x.it.name}</span></td>
+      <td class="r">${qty(x.q, x.it.unit)}</td><td class="r">${inr(x.val)}</td></tr>`).join('')
+      : '<tr><td colspan="3" style="color:var(--muted)">No consumption recorded this month.</td></tr>')+'</tbody>';
   // attention list
   const t2 = totals();
   const att = [
@@ -1027,6 +1050,8 @@ $('itemModal').onclick = e=>{ if (e.target.id==='itemModal') closeItemModal(); }
 $('eDate').value = todayStr();
 $('regMonth').value = todayStr().slice(0,7);
 $('accMonth').value = todayStr().slice(0,7);
+$('dashMonth').value = todayStr().slice(0,7);
+$('dashMonth').onchange = renderDash;
 $('methodSel').value = DB.settings.method;
 // first run: pre-populate the item master from the latest stock statement
 if (!DB.items.length){
