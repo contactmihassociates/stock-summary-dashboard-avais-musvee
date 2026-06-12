@@ -48,3 +48,16 @@ every month on file automatically.
 
 Requires Python 3 with `openpyxl` (`pip install openpyxl`) to rebuild.
 The raw xlsx statements are intentionally **not** committed (see `.gitignore`).
+
+## Hosting on Vercel
+
+The build emits `index.html` (identical to `Stock_Dashboard.html`), so the
+repo deploys as a plain static site:
+
+1. Go to [vercel.com/new](https://vercel.com/new) and import this GitHub repo.
+2. Framework preset: **Other**. Leave build command and output directory
+   **empty** (no build step — `index.html` is committed).
+3. Deploy. Every `git push` to `main` redeploys automatically.
+
+To publish a new month: run `Update Dashboard.bat`, then
+`git add -A && git commit -m "JUN-26" && git push`.

@@ -21,10 +21,12 @@ def main():
         template = f.read()
     payload = json.dumps({'months': months}, ensure_ascii=False)
     html = template.replace('/*__STOCK_DATA__*/', payload, 1)
-    out = os.path.join(HERE, 'Stock_Dashboard.html')
-    with open(out, 'w', encoding='utf-8') as f:
-        f.write(html)
-    print('Built', out)
+    # Stock_Dashboard.html for local double-click use, index.html for web hosting (Vercel)
+    for name in ('Stock_Dashboard.html', 'index.html'):
+        out = os.path.join(HERE, name)
+        with open(out, 'w', encoding='utf-8') as f:
+            f.write(html)
+        print('Built', out)
 
 
 if __name__ == '__main__':
