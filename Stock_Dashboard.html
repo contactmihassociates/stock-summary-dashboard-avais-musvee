@@ -4,48 +4,77 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Monthly Stock Summary Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
 <style>
 :root{
-  --bg:#12141c; --panel:#1c1f2b; --panel2:#232737; --border:#2c3145;
-  --text:#e8eaf2; --muted:#9aa1b9; --accent:#4ea8de; --accent2:#f4a261;
-  --good:#2ecc71; --bad:#e85d6a; --warn:#f1c40f;
-  --c1:#4ea8de; --c2:#f4a261; --c3:#2ecc71; --c4:#e85d6a; --c5:#a78bfa; --c6:#34d3c8; --c7:#f472b6;
-  --radius:10px; --gap:14px;
+  --bg:#0b0d14; --panel:#161927e6; --panel2:#1f2335; --border:#2b3047;
+  --text:#eceef6; --muted:#98a0bb; --accent:#5ab4f0; --accent2:#f4a261;
+  --good:#34d399; --bad:#f4647a; --warn:#fbbf24;
+  --c1:#5ab4f0; --c2:#f4a261; --c3:#34d399; --c4:#f4647a; --c5:#a78bfa; --c6:#2dd4bf; --c7:#f472b6;
+  --radius:14px; --gap:16px;
+  --shadow:0 10px 30px -12px rgba(0,0,0,.55);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',-apple-system,Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.45;font-size:14px}
+html{scrollbar-color:#343a55 #12141f}
+body{font-family:'Inter','Segoe UI',-apple-system,Roboto,sans-serif;color:var(--text);line-height:1.45;font-size:14px;
+  background:var(--bg);
+  background-image:
+    radial-gradient(900px 500px at 85% -10%, rgba(90,180,240,.14), transparent 60%),
+    radial-gradient(800px 500px at -10% 10%, rgba(167,139,250,.12), transparent 60%),
+    radial-gradient(700px 600px at 50% 110%, rgba(45,212,191,.08), transparent 60%);
+  background-attachment:fixed}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#343a55;border-radius:6px;border:2px solid #12141f}
+::-webkit-scrollbar-track{background:#12141f}
 .wrap{max-width:1480px;margin:0 auto;padding:var(--gap)}
-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;
-  background:linear-gradient(135deg,#1b2436,#141826);border:1px solid var(--border);
-  border-radius:var(--radius);padding:16px 22px;margin-bottom:var(--gap)}
-header h1{font-size:19px;font-weight:600;letter-spacing:.3px}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+  background:linear-gradient(135deg,rgba(38,52,82,.75),rgba(20,24,40,.85));
+  backdrop-filter:blur(10px);border:1px solid rgba(90,180,240,.22);
+  border-radius:var(--radius);padding:18px 24px;margin-bottom:var(--gap);box-shadow:var(--shadow)}
+.brand{display:flex;gap:14px;align-items:center}
+.logo{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:linear-gradient(135deg,#5ab4f0,#a78bfa);box-shadow:0 6px 18px -6px rgba(90,180,240,.6)}
+header h1{font-size:19px;font-weight:700;letter-spacing:.2px;
+  background:linear-gradient(90deg,#fff,#aecdf2);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 header .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .controls label{font-size:12px;color:var(--muted)}
 .controls select{background:var(--panel2);color:var(--text);border:1px solid var(--border);
-  border-radius:6px;padding:7px 12px;font-size:13px;cursor:pointer}
-.btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;
-  padding:7px 12px;font-size:12.5px;cursor:pointer}
-.btn:hover{background:#2a2f44;border-color:var(--accent)}
+  border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;transition:border-color .15s}
+.controls select:hover,.controls select:focus{border-color:var(--accent);outline:none}
+.btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;
+  padding:8px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;transition:all .15s}
+.btn:hover{background:#2a2f44;border-color:var(--accent);box-shadow:0 0 14px -4px rgba(90,180,240,.5)}
 .tools{display:flex;gap:8px;align-items:center}
 .tools input{background:var(--panel2);color:var(--text);border:1px solid var(--border);
   border-radius:6px;padding:5px 10px;font-size:12px;width:160px}
 .tools input::placeholder{color:var(--muted)}
 .tools .btn{padding:5px 10px;font-size:11.5px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
-.kpi{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:15px 18px;position:relative;overflow:hidden}
-.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
-.kpi.k2::before{background:var(--c2)} .kpi.k3::before{background:var(--c3)}
-.kpi.k4::before{background:var(--c5)} .kpi.k5::before{background:var(--c6)} .kpi.k6::before{background:var(--c4)}
-.kpi .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
-.kpi .val{font-size:23px;font-weight:700;margin:4px 0 2px}
+.kpi{--kc:var(--c1);background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden;box-shadow:var(--shadow);
+  transition:transform .18s ease,border-color .18s ease}
+.kpi:hover{transform:translateY(-3px);border-color:var(--kc)}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kc)}
+.kpi::after{content:'';position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:50%;
+  background:radial-gradient(circle,color-mix(in srgb,var(--kc) 22%,transparent),transparent 70%);pointer-events:none}
+.kpi.k2{--kc:var(--c2)} .kpi.k3{--kc:var(--c3)}
+.kpi.k4{--kc:var(--c5)} .kpi.k5{--kc:var(--c6)} .kpi.k6{--kc:var(--c4)}
+.kpi .lbl{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.9px;font-weight:600}
+.kpi .val{font-size:25px;font-weight:800;margin:5px 0 3px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
 .kpi .chg{font-size:12px;font-weight:600}
 .chg.up{color:var(--good)} .chg.down{color:var(--bad)} .chg.flat{color:var(--muted)}
 .grid{display:grid;gap:var(--gap);margin-bottom:var(--gap)}
 .g2{grid-template-columns:1.4fr 1fr} .g2b{grid-template-columns:1fr 1fr} .g3{grid-template-columns:1fr 1fr 1fr}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
-.card h3{font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.card{background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);
+  transition:border-color .18s ease}
+.card:hover{border-color:#3a4163}
+.card h3{font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;letter-spacing:.2px}
 .card h3 .hint{font-size:11px;color:var(--muted);font-weight:400}
 .chartbox{position:relative;height:280px}
 .chartbox.tall{height:340px}
@@ -94,9 +123,12 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:8px 0 18px}
 <body>
 <div class="wrap">
   <header>
-    <div>
-      <h1>📦 Monthly Stock Summary — Closing Stock Dashboard</h1>
-      <div class="sub" id="subTitle"></div>
+    <div class="brand">
+      <div class="logo">📦</div>
+      <div>
+        <h1>Monthly Stock Summary — Closing Stock Dashboard</h1>
+        <div class="sub" id="subTitle"></div>
+      </div>
     </div>
     <div class="controls">
       <label>Month</label>
@@ -287,8 +319,21 @@ function render(){
 }
 
 // ---------- KPIs ----------
-function kpiCard(cls,label,val,sub,subCls){
-  return `<div class="kpi ${cls}"><div class="lbl">${label}</div><div class="val">${val}</div><div class="chg ${subCls||'flat'}">${sub||''}</div></div>`;
+function kpiCard(cls,label,val,sub,subCls,raw,fmt){
+  const d = (raw!==null && raw!==undefined && isFinite(raw)) ? ` data-raw="${raw}" data-fmt="${fmt||'inr'}"` : '';
+  return `<div class="kpi ${cls}"><div class="lbl">${label}</div><div class="val"${d}>${val}</div><div class="chg ${subCls||'flat'}">${sub||''}</div></div>`;
+}
+function animateKpis(){
+  document.querySelectorAll('.kpi .val[data-raw]').forEach(el=>{
+    const target=+el.dataset.raw, fmt=el.dataset.fmt, final=el.textContent;
+    if (!target){ return; }
+    const t0=performance.now(), dur=650;
+    (function tick(t){
+      const k=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-k,3);
+      el.textContent = k>=1 ? final : (fmt==='pct' ? (target*e).toFixed(1)+'%' : inr(target*e));
+      if(k<1) requestAnimationFrame(tick);
+    })(t0);
+  });
 }
 function chgTxt(cur, prev, invert){
   if (prev === null || prev === undefined || !prev) return ['vs prior: —','flat'];
@@ -314,12 +359,13 @@ function renderKPIs(m,p,T,P){
   const [t3,c3]=chgTxt(T.wip, P&&P.wip, true);
   const [t4,c4]=chgTxt(T.yarn, P&&P.yarn, true);
   document.getElementById('kpiRow').innerHTML =
-    kpiCard('','Total Stock Value', inr(T.grand), t1, c1) +
-    kpiCard('k2','Finished Goods', inr(T.fg), t2, c2) +
-    kpiCard('k3','Work in Progress', inr(T.wip), `${t3} · ${wipShare.toFixed(1)}% of stock`, c3) +
-    kpiCard('k4','Raw Material (Yarn)', inr(T.yarn), t4, c4) +
-    kpiCard('k5','FG Concentration', fgShare.toFixed(1)+'%', `${topCust.name} holds ${inr(topCust.value)}`, fgShare>50?'down':'up') +
-    kpiCard('k6','No-Movement Stock', p ? inr(stale) : '—', p?'value unchanged vs prior month':'select a comparison month', stale>0?'down':'up');
+    kpiCard('','Total Stock Value', inr(T.grand), t1, c1, T.grand, 'inr') +
+    kpiCard('k2','Finished Goods', inr(T.fg), t2, c2, T.fg, 'inr') +
+    kpiCard('k3','Work in Progress', inr(T.wip), `${t3} · ${wipShare.toFixed(1)}% of stock`, c3, T.wip, 'inr') +
+    kpiCard('k4','Raw Material (Yarn)', inr(T.yarn), t4, c4, T.yarn, 'inr') +
+    kpiCard('k5','FG Concentration', fgShare.toFixed(1)+'%', `${topCust.name} holds ${inr(topCust.value)}`, fgShare>50?'down':'up', fgShare, 'pct') +
+    kpiCard('k6','No-Movement Stock', p ? inr(stale) : '—', p?'value unchanged vs prior month':'select a comparison month', stale>0?'down':'up', p?stale:null, 'inr');
+  animateKpis();
 }
 
 // ---------- executive summary ----------
