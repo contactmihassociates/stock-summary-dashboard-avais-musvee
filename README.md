@@ -8,13 +8,8 @@ Dyeing → Stitching/Blanket → Finished Goods).
 
 1. Drop the new month's `XXX-YY Stock statement.xlsx` into this folder
    (same sheet layout as previous months).
-2. Run:
-
-   ```
-   python build_dashboard.py
-   ```
-
-3. Open `Stock_Dashboard.html` in any browser.
+2. Double-click **`Update Dashboard.bat`** — it rebuilds and opens the
+   dashboard automatically. (Or run `python build_dashboard.py` manually.)
 
 The trend chart, month-over-month comparisons, and automated alerts extend to
 every month on file automatically.
@@ -32,14 +27,24 @@ every month on file automatically.
 
 - **Hero KPIs** — total stock, finished goods, WIP, raw material, customer
   concentration, no-movement stock — all with MoM deltas
+- **Executive summary** — auto-written plain-language commentary of the
+  month (total change, biggest driver, risks) with copy-to-clipboard
+- **MoM bridge (waterfall)** — decomposes the change in total stock into
+  Raw Material / Chemicals / WIP / Finished Goods / Numbal contributions
+- **Top Movers** — the eight largest value swings across all line items
 - **Trend & composition** — multi-month value trend, stock mix doughnut
 - **Production pipeline strip** — WIP value/weight per stage with MoM arrows
 - **Finished goods by customer** — bars colored by movement
   (green = grew, red = drew down, yellow = frozen)
 - **Action Center** — automated alerts: concentration risk, stale stock,
-  no-movement customers, WIP swings, zero-stock customers
-- **Registers** — sortable customer stock and raw-material yarn tables with
-  rate/kg sanity checks
+  no-movement customers and yarn lots, WIP swings, zero-stock customers,
+  data-quality failures
+- **Registers** — sortable, searchable customer and raw-material tables with
+  rate/kg sanity checks, per-row MoM deltas, status badges and CSV export
+- **Controls** — month selector, free choice of comparison month,
+  Value ₹ / Weight kg view toggle, Print/PDF with a dedicated print layout
+- **Data-quality gate** — the extractor verifies components reproduce each
+  sheet's GRAND TOTAL and raises a red alert on mismatch
 
 Requires Python 3 with `openpyxl` (`pip install openpyxl`) to rebuild.
 The raw xlsx statements are intentionally **not** committed (see `.gitignore`).
